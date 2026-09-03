@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Momentum Signal Tracker</title>
+  <style>
+    :root {
+      --bg:        #0d1117;
+      --surface:   #161b22;
+      --surface2:  #21262d;
+      --border:    #30363d;
+      --green:     #3fb950;
+      --red:       #f85149;
+      --yellow:    #d29922;
+      --blue:      #58a6ff;
+      --purple:    #bc8cff;
+      --text:      #e6edf3;
+      --muted:     #8b949e;
+      --font:      'Segoe UI', system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .logo-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, #58a6ff, #bc8cff);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+    }
+    .logo h1 { font-size: 18px; font-weight: 700; letter-spacing: 0.3px; }
+    .logo span { font-size: 12px; color: var(--muted); display: block; margin-top: 1px; }
+
+    .header-right {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    }
+    .status-pill {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 5px 12px;
+      font-size: 13px;
+    }
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--muted);
+      transition: background 0.3s;
+    }
+    .dot.live  { background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite; }
+    .dot.error { background: var(--red); }
+    @keyframes pulse {
+      0%,100% { opacity: 1; } 50% { opacity: 0.4; }
+    }
+
+    #last-updated { font-size: 12px; color: var(--muted); }
+
+    /* ── Controls bar ── */
+    .controls {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .ctrl-group { display: flex; align-items: center; gap: 8px; }
+    .ctrl-group label { font-size: 13px; color: var(--muted); white-space: nowrap; }
+    select, input[type=number] {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    select:focus, input[type=number]:focus { border-color: var(--blue); }
+    input[type=number] { width: 90px; }
+
+    .btn {
+      padding: 7px 16px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary  { background: var(--blue);   color: #000; }
+    .btn-success  { background: var(--green);  color: #000; }
+    .btn-outline  {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .spacer { flex: 1; }
+
+    /* ── Countdown bar ── */
+    #countdown-bar {
+      height: 3px;
+      background: var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+    #countdown-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--blue), var(--purple));
+      width: 100%;
+      transition: width 1s linear;
+    }
+
+    /* ── Main layout ── */
+    main { padding: 20px 24px; max-width: 1600px; margin: 0 auto; }
+
+    /* ── Stats row ── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .stat-card .label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+    .stat-card .value { font-size: 24px; font-weight: 700; }
+    .stat-card .sub   { font-size: 11px; color: var(--muted); margin-top: 3px; }
+    .green { color: var(--green); }
+    .red   { color: var(--red);   }
+    .blue  { color: var(--blue);  }
+    .yellow{ color: var(--yellow);}
+
+    /* ── Table section ── */
+    .section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 12px; flex-wrap: wrap; gap: 8px;
+    }
+    .section-title { font-size: 15px; font-weight: 600; }
+    .tag {
+      font-size: 11px; padding: 2px 8px;
+      border-radius: 12px; font-weight: 600;
+    }
+    .tag-buy  { background: rgba(63,185,80,0.15);  color: var(--green); border: 1px solid rgba(63,185,80,0.3); }
+    .tag-sell { background: rgba(248,81,73,0.15);  color: var(--red);   border: 1px solid rgba(248,81,73,0.3); }
+    .tag-fno  { background: rgba(188,140,255,0.15);color: var(--purple);border: 1px solid rgba(188,140,255,0.3); }
+    .tag-bo   { background: rgba(210,153,34,0.15); color: var(--yellow);border: 1px solid rgba(210,153,34,0.3); }
+
+    .table-wrap {
+      overflow-x: auto;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      margin-bottom: 24px;
+    }
+    table {
+      width: 100%; border-collapse: collapse;
+      font-size: 13px; white-space: nowrap;
+    }
+    thead tr {
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      padding: 10px 14px;
+      text-align: left;
+      font-weight: 600;
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: rgba(88,166,255,0.05); }
+    td { padding: 11px 14px; }
+
+    .rank-badge {
+      width: 24px; height: 24px; border-radius: 50%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700; color: var(--muted);
+    }
+    .rank-badge.top { background: rgba(210,153,34,0.2); border-color: var(--yellow); color: var(--yellow); }
+
+    .symbol-cell { font-weight: 700; font-size: 14px; }
+
+    .bar-wrap {
+      display: flex; align-items: center; gap: 8px;
+    }
+    .bar-bg {
+      width: 60px; height: 6px; background: var(--surface2);
+      border-radius: 3px; overflow: hidden; flex-shrink: 0;
+    }
+    .bar-fill {
+      height: 100%; border-radius: 3px;
+      background: linear-gradient(90deg, var(--blue), var(--purple));
+    }
+
+    /* ── Allocation section ── */
+    .alloc-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .alloc-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      position: relative;
+      overflow: hidden;
+    }
+    .alloc-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0;
+      width: 4px; height: 100%;
+    }
+    .alloc-card.buy::before  { background: var(--green); }
+    .alloc-card.sell::before { background: var(--red);   }
+    .alloc-top {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      margin-bottom: 10px;
+    }
+    .alloc-symbol { font-weight: 700; font-size: 15px; }
+    .alloc-inr    { font-size: 14px; font-weight: 700; }
+    .alloc-usd    { font-size: 11px; color: var(--muted); }
+    .alloc-pct-bar {
+      height: 4px; background: var(--surface2); border-radius: 2px; overflow: hidden;
+    }
+    .alloc-pct-fill {
+      height: 100%; border-radius: 2px;
+      background: linear-gradient(90deg, var(--green), var(--blue));
+    }
+    .alloc-pct-label {
+      font-size: 11px; color: var(--muted); margin-top: 5px; text-align: right;
+    }
+
+    /* ── Empty / loading states ── */
+    .empty-state {
+      text-align: center; padding: 60px 20px;
+      color: var(--muted);
+    }
+    .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+    .empty-state p { font-size: 14px; }
+
+    .spinner {
+      width: 32px; height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 18px;
+      font-size: 13px;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.3s, transform 0.3s;
+      z-index: 999;
+      max-width: 320px;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+    #toast.success { border-left: 3px solid var(--green); }
+    #toast.error   { border-left: 3px solid var(--red);   }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 20px;
+      font-size: 12px;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+    }
+
+    @media (max-width: 600px) {
+      header { padding: 12px 16px; }
+      main   { padding: 14px 12px; }
+      .controls { padding: 10px 12px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">📈</div>
+    <div>
+      <h1>Momentum Signal Tracker</h1>
+      <span>NIFTY 50 &amp; NIFTY 500 · Angel One Live Feed</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="status-pill">
+      <div class="dot" id="status-dot"></div>
+      <span id="status-text">Idle</span>
+    </div>
+    <span id="last-updated">—</span>
+  </div>
+</header>
+
+<!-- ── Countdown bar ── -->
+<div id="countdown-bar"><div id="countdown-fill"></div></div>
+
+<!-- ── Controls ── -->
+<div class="controls">
+  <div class="ctrl-group">
+    <label>Interval</label>
+    <select id="interval">
+      <option value="ONE_MINUTE">1 Min</option>
+      <option value="FIVE_MINUTE" selected>5 Min</option>
+      <option value="FIFTEEN_MINUTE">15 Min</option>
+      <option value="THIRTY_MINUTE">30 Min</option>
+    </select>
+  </div>
+  <div class="ctrl-group">
+    <label>Top N</label>
+    <input type="number" id="top-n" value="10" min="1" max="50" />
+  </div>
+  <div class="ctrl-group">
+    <label>Capital (USD)</label>
+    <input type="number" id="capital" value="10000" min="100" step="500" />
+  </div>
+  <div class="spacer"></div>
+  <button class="btn btn-outline" id="btn-csv" onclick="downloadCSV()" disabled>⬇ CSV</button>
+  <button class="btn btn-primary"  id="btn-scan" onclick="startScan()">▶ Start Scan</button>
+  <button class="btn btn-outline"  id="btn-stop" onclick="stopScan()" disabled>⏹ Stop</button>
+</div>
+
+<!-- ── Main ── -->
+<main>
+
+  <!-- Stats row -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="label">Total Signals</div>
+      <div class="value blue" id="stat-total">—</div>
+      <div class="sub">qualifying stocks</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">BUY Signals</div>
+      <div class="value green" id="stat-buy">—</div>
+      <div class="sub">momentum up</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">SELL Signals</div>
+      <div class="value red" id="stat-sell">—</div>
+      <div class="sub">momentum down</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">F&amp;O Eligible</div>
+      <div class="value yellow" id="stat-fno">—</div>
+      <div class="sub">in derivatives</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Breakouts</div>
+      <div class="value" style="color:var(--purple)" id="stat-bo">—</div>
+      <div class="sub">high-vol breakout</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Scan #</div>
+      <div class="value" id="stat-scan">0</div>
+      <div class="sub">cycles completed</div>
+    </div>
+  </div>
+
+  <!-- Signals table -->
+  <div class="section-header">
+    <span class="section-title">📊 Live Signals</span>
+    <span id="signal-count" style="font-size:12px;color:var(--muted)"></span>
+  </div>
+  <div class="table-wrap">
+    <table id="signals-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Symbol</th>
+          <th>Signal</th>
+          <th>F&amp;O</th>
+          <th>LTP (₹)</th>
+          <th>RSI</th>
+          <th>Momentum %</th>
+          <th>Vol Ratio</th>
+          <th>Breakout</th>
+          <th>Score</th>
+          <th>Entry</th>
+          <th>TG1</th>
+          <th>TG2</th>
+          <th>TG3</th>
+          <th>Stop Loss</th>
+          <th>Trail Stop</th>
+        </tr>
+      </thead>
+      <tbody id="signals-body">
+        <tr>
+          <td colspan="16">
+            <div class="empty-state">
+              <div class="icon">🔍</div>
+              <p>Press <strong>Start Scan</strong> to fetch live signals</p>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Allocation section -->
+  <div class="section-header">
+    <span class="section-title">💰 Capital Allocation</span>
+    <span id="alloc-total" style="font-size:12px;color:var(--muted)"></span>
+  </div>
+  <div class="alloc-grid" id="alloc-grid">
+    <div style="color:var(--muted);font-size:13px;padding:20px 0">
+      Allocation will appear after the first scan.
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  ⚠ For educational purposes only · Not financial advice · Data via Angel One SmartConnect
+</footer>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+  const API = '';   // same origin — Vercel serves both UI and /scan
+
+  let scanInterval = null;
+  let countdownInterval = null;
+  let scanCount = 0;
+  let refreshSecs = 100;
+  let remaining = 100;
+  let lastData = null;
+
+  // ── Toast ────────────────────────────────────────────────────────────────
+  function toast(msg, type = 'success') {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = `show ${type}`;
+    clearTimeout(el._t);
+    el._t = setTimeout(() => { el.className = ''; }, 3500);
+  }
+
+  // ── Status dot ───────────────────────────────────────────────────────────
+  function setStatus(state, text) {
+    const dot  = document.getElementById('status-dot');
+    const span = document.getElementById('status-text');
+    dot.className = 'dot ' + state;
+    span.textContent = text;
+  }
+
+  // ── Countdown bar ────────────────────────────────────────────────────────
+  function startCountdown() {
+    remaining = refreshSecs;
+    clearInterval(countdownInterval);
+    countdownInterval = setInterval(() => {
+      remaining = Math.max(0, remaining - 1);
+      const pct = (remaining / refreshSecs) * 100;
+      document.getElementById('countdown-fill').style.width = pct + '%';
+    }, 1000);
+  }
+
+  // ── Fetch scan ───────────────────────────────────────────────────────────
+  async function fetchScan() {
+    const interval = document.getElementById('interval').value;
+    const top      = document.getElementById('top-n').value;
+    const capital  = document.getElementById('capital').value;
+
+    setStatus('live', 'Scanning…');
+
+    try {
+      const res = await fetch(
+        `${API}/scan?interval=${interval}&top=${top}&capital=${capital}`
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      lastData = data;
+      scanCount++;
+      renderData(data);
+      setStatus('live', 'Live');
+      document.getElementById('last-updated').textContent =
+        'Updated: ' + new Date().toLocaleTimeString('en-IN');
+      document.getElementById('stat-scan').textContent = scanCount;
+      document.getElementById('btn-csv').disabled = false;
+      startCountdown();
+    } catch (err) {
+      setStatus('error', 'Error');
+      toast('Scan failed: ' + err.message, 'error');
+    }
+  }
+
+  // ── Render table ─────────────────────────────────────────────────────────
+  function renderData(data) {
+    const results = data.results || [];
+    const body    = document.getElementById('signals-body');
+
+    // Stats
+    const buys     = results.filter(r => r.signal === 'BUY').length;
+    const sells    = results.filter(r => r.signal === 'SELL').length;
+    const fnos     = results.filter(r => r.fno).length;
+    const bos      = results.filter(r => r.breakout).length;
+    document.getElementById('stat-total').textContent = results.length;
+    document.getElementById('stat-buy').textContent   = buys;
+    document.getElementById('stat-sell').textContent  = sells;
+    document.getElementById('stat-fno').textContent   = fnos;
+    document.getElementById('stat-bo').textContent    = bos;
+    document.getElementById('signal-count').textContent =
+      `${results.length} signal(s) · ${data.interval} · ${data.scan_time?.slice(0,19)?.replace('T',' ')} IST`;
+
+    if (results.length === 0) {
+      body.innerHTML = `<tr><td colspan="16">
+        <div class="empty-state">
+          <div class="icon">😶</div>
+          <p>No qualifying signals in this cycle. Market may be outside scan window.</p>
+        </div></td></tr>`;
+      renderAllocation([]);
+      return;
+    }
+
+    body.innerHTML = results.map((r, i) => {
+      const isBuy  = r.signal === 'BUY';
+      const scoreW = Math.min(r.score, 100);
+      return `
+      <tr>
+        <td><span class="rank-badge ${i < 3 ? 'top' : ''}">${r.rank}</span></td>
+        <td class="symbol-cell">
+          ${r.symbol}
+          ${r.fno      ? '<span class="tag tag-fno" style="margin-left:4px">F&O</span>' : ''}
+          ${r.breakout ? '<span class="tag tag-bo"  style="margin-left:2px">BO</span>'  : ''}
+        </td>
+        <td><span class="tag ${isBuy ? 'tag-buy' : 'tag-sell'}">${r.signal}</span></td>
+        <td style="color:${r.fno ? 'var(--purple)' : 'var(--muted)'}">${r.fno ? 'YES' : 'NO'}</td>
+        <td><strong>₹${fmt(r.ltp)}</strong></td>
+        <td style="color:${rsiColor(r.rsi)}">${r.rsi != null ? r.rsi.toFixed(1) : '—'}</td>
+        <td style="color:${r.momentum_pct >= 0 ? 'var(--green)' : 'var(--red)'}">
+          ${r.momentum_pct != null ? (r.momentum_pct >= 0 ? '+' : '') + r.momentum_pct.toFixed(2) + '%' : '—'}
+        </td>
+        <td>
+          <div class="bar-wrap">
+            <div class="bar-bg"><div class="bar-fill" style="width:${Math.min((r.volume_ratio||0)/3*100,100)}%"></div></div>
+            ${r.volume_ratio != null ? r.volume_ratio.toFixed(2) + 'x' : '—'}
+          </div>
+        </td>
+        <td style="color:${r.breakout ? 'var(--yellow)' : 'var(--muted)'}">
+          ${r.breakout ? '✓ YES' : 'NO'}
+        </td>
+        <td>
+          <div class="bar-wrap">
+            <div class="bar-bg"><div class="bar-fill" style="width:${scoreW}%"></div></div>
+            <strong>${r.score?.toFixed(1)}</strong>
+          </div>
+        </td>
+        <td>₹${fmt(r.entry)}</td>
+        <td style="color:${isBuy?'var(--green)':'var(--red)'}">₹${fmt(r.tg1)}</td>
+        <td style="color:${isBuy?'var(--green)':'var(--red)'}">₹${fmt(r.tg2)}</td>
+        <td style="color:${isBuy?'var(--green)':'var(--red)'}">₹${fmt(r.tg3)}</td>
+        <td style="color:var(--red)">₹${fmt(r.stop_loss)}</td>
+        <td style="color:var(--yellow)">₹${fmt(r.trailing_stop)}</td>
+      </tr>`;
+    }).join('');
+
+    renderAllocation(results);
+  }
+
+  function rsiColor(v) {
+    if (v == null) return 'var(--muted)';
+    if (v >= 70)   return 'var(--red)';
+    if (v >= 55)   return 'var(--green)';
+    if (v <= 30)   return 'var(--red)';
+    return 'var(--muted)';
+  }
+
+  function fmt(v) {
+    if (v == null) return '—';
+    return Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  // ── Render allocation ────────────────────────────────────────────────────
+  function renderAllocation(results) {
+    const grid    = document.getElementById('alloc-grid');
+    const capital = parseFloat(document.getElementById('capital').value) || 10000;
+    const usdInr  = 84;
+    const totalInr = capital * usdInr;
+
+    if (!results.length) {
+      grid.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:20px 0">No signals to allocate.</div>';
+      document.getElementById('alloc-total').textContent = '';
+      return;
+    }
+
+    document.getElementById('alloc-total').textContent =
+      `Total: $${capital.toLocaleString()} USD · ₹${totalInr.toLocaleString('en-IN')}`;
+
+    grid.innerHTML = results.map(r => {
+      const inr  = r.alloc_inr || 0;
+      const usd  = r.alloc_usd || 0;
+      const pct  = totalInr > 0 ? (inr / totalInr * 100) : 0;
+      const isBuy = r.signal === 'BUY';
+      return `
+      <div class="alloc-card ${isBuy ? 'buy' : 'sell'}">
+        <div class="alloc-top">
+          <div>
+            <div class="alloc-symbol">${r.symbol}</div>
+            <div style="margin-top:3px">
+              <span class="tag ${isBuy ? 'tag-buy' : 'tag-sell'}">${r.signal}</span>
+              ${r.fno ? '<span class="tag tag-fno" style="margin-left:4px">F&O</span>' : ''}
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div class="alloc-inr">₹${Math.round(inr).toLocaleString('en-IN')}</div>
+            <div class="alloc-usd">$${usd.toFixed(2)}</div>
+          </div>
+        </div>
+        <div class="alloc-pct-bar">
+          <div class="alloc-pct-fill" style="width:${pct}%"></div>
+        </div>
+        <div class="alloc-pct-label">${pct.toFixed(1)}% of capital · Score ${r.score?.toFixed(1)}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // ── Start / Stop ─────────────────────────────────────────────────────────
+  function startScan() {
+    refreshSecs = 100;
+    fetchScan();
+    scanInterval = setInterval(fetchScan, refreshSecs * 1000);
+    document.getElementById('btn-scan').disabled = true;
+    document.getElementById('btn-stop').disabled = false;
+    toast('Scan started — refreshes every 100 s', 'success');
+  }
+
+  function stopScan() {
+    clearInterval(scanInterval);
+    clearInterval(countdownInterval);
+    scanInterval = null;
+    document.getElementById('btn-scan').disabled = false;
+    document.getElementById('btn-stop').disabled = true;
+    document.getElementById('countdown-fill').style.width = '100%';
+    setStatus('', 'Stopped');
+    toast('Scan stopped', 'error');
+  }
+
+  // ── CSV download ─────────────────────────────────────────────────────────
+  async function downloadCSV() {
+    const interval = document.getElementById('interval').value;
+    const top      = document.getElementById('top-n').value;
+    const capital  = document.getElementById('capital').value;
+    const url = `${API}/scan/csv?interval=${interval}&top=${top}&capital=${capital}`;
+    window.open(url, '_blank');
+    toast('CSV download started', 'success');
+  }
+</script>
+</body>
+</html>
