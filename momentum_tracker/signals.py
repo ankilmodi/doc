@@ -84,23 +84,48 @@ def _score_ema(ema_fast: float, ema_slow: float, signal: SignalType) -> float:
 def detect_signal(ind: Dict) -> SignalType:
     """
     Evaluate indicator dict and return "BUY", "SELL", or "NONE".
+
+    On cold start (Vercel serverless) we may have limited bars:
+    - vol_ratio=None  → skip volume gate (not enough history to compare)
+    - rsi=None        → use relaxed mid-range assumption
+    - mom=None        → use price open/close diff as proxy
+    - ema_trend=None or "neutral" → use intraday direction as proxy
     """
     rsi        = ind.get("rsi")
     ema_trend  = ind.get("ema_trend")
     mom        = ind.get("momentum")
     vol_ratio  = ind.get("volume_ratio")
     ltp        = ind.get("ltp", 0)
-
-    # All values must be available
-    if any(v is None for v in [rsi, ema_trend, mom, vol_ratio]):
-        return "NONE"
+    open_price = ind.get("open", ltp)
 
     # Penny-stock filter
     if ltp < config.MIN_PRICE:
         return "NONE"
 
-    # Volume must be a spike
-    if vol_ratio < config.VOLUME_SPIKE_MULT:
+    # ── Cold-start fallbacks ──────────────────────────────────────────────────
+    # If RSI is unavailable (< RSI_PERIOD bars), approximate from open-close
+    if rsi is None:
+        change_pct = ((ltp - open_price) / open_price * 100) if open_price else 0
+        # Map rough open-close change to an RSI-like proxy
+        rsi = 50 + change_pct * 3   # ±5 % move → ~65/35 proxy RSI
+        rsi = max(10.0, min(90.0, rsi))
+
+    # If momentum (ROC) is unavailable, use intraday open→close %
+    if mom is None:
+        mom = ((ltp - open_price) / open_price * 100) if open_price else 0
+
+    # EMA trend: treat None or "neutral" (identical EMAs on cold start) the same
+    if not ema_trend or ema_trend == "neutral":
+        if ltp > open_price:
+            ema_trend = "bullish"
+        elif ltp < open_price:
+            ema_trend = "bearish"
+        else:
+            return "NONE"
+
+    # Volume gate: only apply if we have a real computed ratio
+    # (skip on cold start where vol_ratio=None — can't penalize missing history)
+    if vol_ratio is not None and vol_ratio < config.VOLUME_SPIKE_MULT:
         return "NONE"
 
     # BUY conditions

@@ -28,16 +28,16 @@ MOMENTUM_PERIOD   = 10               # n-bar rate-of-change
 VOLUME_AVG_DAYS   = 5                # how many past sessions for avg volume
 
 # ── Signal thresholds ────────────────────────────────────────────────────────
-RSI_BUY_MIN       = 55               # RSI must be above this for a buy signal
-RSI_BUY_MAX       = 75               # RSI must be below this (avoid overbought)
-RSI_SELL_MIN      = 25               # RSI must be below this for a sell signal
-RSI_SELL_MAX      = 45
+RSI_BUY_MIN       = 50               # RSI must be above this for a buy signal
+RSI_BUY_MAX       = 78               # RSI must be below this (avoid overbought)
+RSI_SELL_MIN      = 22               # RSI must be below this for a sell signal
+RSI_SELL_MAX      = 50
 
-VOLUME_SPIKE_MULT = 1.5              # current volume >= 1.5× 5-day avg to qualify
+VOLUME_SPIKE_MULT = 1.1              # current volume >= 1.1× avg to qualify (relaxed)
 BREAKOUT_MULT     = 1.0              # price >= previous high to flag as breakout
 
-MOMENTUM_BUY_MIN  = 2.0             # % momentum (ROC) threshold for buy
-MOMENTUM_SELL_MAX = -2.0            # % momentum threshold for sell
+MOMENTUM_BUY_MIN  = 0.05            # % momentum (ROC) threshold for buy – intraday moves are small
+MOMENTUM_SELL_MAX = -0.05           # % momentum threshold for sell
 
 MIN_PRICE         = 20.0             # exclude stocks below this price (penny filter)
 MIN_MARKET_CAP_CR = 500             # rough proxy; enforced via universe list

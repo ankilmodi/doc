@@ -94,7 +94,11 @@ def rsi(values: List[float], period: int = 14) -> List[Optional[float]]:
 
 
 def rsi_current(candles: List[Dict], period: int = 14) -> Optional[float]:
-    """Return the latest RSI, or None."""
+    """Return the latest RSI, or None if there are too few bars for a reliable reading."""
+    # Need at least period+2 closes to produce a non-degenerate RSI
+    # (period+1 diffs, with enough history to avoid 0/100 extremes)
+    if len(candles) < max(period + 2, 5):
+        return None
     vals = rsi(_closes(candles), period)
     for v in reversed(vals):
         if v is not None:
@@ -203,13 +207,17 @@ def compute_indicators(
     breakout  = is_breakout(candles)
 
     # EMA trend
+    # When there are too few bars, ema_fast and ema_slow both reduce to the
+    # same SMA and are identical — "neutral" is meaningless.  Fall back to
+    # the intraday open→close direction so detect_signal gets a usable value.
     if ef is not None and es is not None:
         if ef > es:
             trend = "bullish"
         elif ef < es:
             trend = "bearish"
         else:
-            trend = "neutral"
+            # EMAs tied (cold-start): use intraday price direction as proxy
+            trend = "bullish" if ltp > last["open"] else ("bearish" if ltp < last["open"] else None)
     else:
         trend = None
 
