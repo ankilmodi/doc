@@ -1,23 +1,17 @@
 """
 api/index.py – FastAPI web server for the Momentum Signal Tracker.
-Deployed as a Vercel Python serverless function.
 
-Endpoints:
-  GET /          → health check + instructions
-  GET /scan      → run one full scan and return JSON results
-  GET /scan/csv  → run one scan and return CSV
-  GET /scan/table → run one scan and return plain-text table
+Uses Market Quote FULL mode only (no historical API – avoids 403 from
+non-Indian Vercel server IPs).
 """
 
 from __future__ import annotations
-import sys
-import os
-
-# Make sure the momentum_tracker package is importable
+import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "momentum_tracker"))
 
 from fastapi import FastAPI, Query
-from fastapi.responses import PlainTextResponse, JSONResponse
+from fastapi.responses import PlainTextResponse, JSONResponse, Response
+from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 from typing import Optional
 
@@ -34,9 +28,16 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# ── Cached API connection (reused across warm invocations) ────────────────────
-_api: Optional[AngelConnector] = None
-_universe = None
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ── Module-level singletons (reused across warm Vercel invocations) ───────────
+_api:      Optional[AngelConnector] = None
+_universe: Optional[list]           = None
 
 
 def _get_api() -> AngelConnector:
@@ -46,7 +47,7 @@ def _get_api() -> AngelConnector:
     return _api
 
 
-def _get_universe():
+def _get_universe() -> list:
     global _universe
     if _universe is None:
         _universe = refresh_tokens_from_master()
@@ -63,19 +64,35 @@ def root():
         "Endpoints:\n"
         "  GET /scan          → JSON results\n"
         "  GET /scan/table    → plain-text table\n"
-        "  GET /scan/csv      → CSV download\n\n"
-        "Query params (all optional):\n"
+        "  GET /scan/csv      → CSV download\n"
+        "  GET /health        → API connectivity check\n\n"
+        "Query params:\n"
         "  interval  ONE_MINUTE | FIVE_MINUTE | FIFTEEN_MINUTE  (default: FIVE_MINUTE)\n"
-        "  top       number of stocks in output  (default: 10)\n"
-        "  capital   capital in USD              (default: 10000)\n"
+        "  top       max stocks in output  (default: 10)\n"
+        "  capital   capital in USD        (default: 10000)\n"
     )
+
+
+@app.get("/health")
+def health():
+    """Quick connectivity and login check."""
+    try:
+        api = _get_api()
+        return JSONResponse({
+            "status":     "ok",
+            "server_ip":  api._server_ip,
+            "session":    "active" if api._jwt_token else "none",
+            "time_ist":   datetime.now().isoformat(),
+        })
+    except Exception as exc:
+        return JSONResponse({"status": "error", "detail": str(exc)}, status_code=500)
 
 
 @app.get("/scan")
 def scan_json(
-    interval: str = Query("FIVE_MINUTE", description="Candle interval"),
-    top: int      = Query(10,            description="Max stocks in output"),
-    capital: float= Query(10000,         description="Capital in USD"),
+    interval: str  = Query("FIVE_MINUTE"),
+    top:      int  = Query(10),
+    capital:  float= Query(10000),
 ):
     config.CANDLE_INTERVAL = interval
     config.TOP_N           = top
@@ -84,34 +101,39 @@ def scan_json(
     api      = _get_api()
     universe = _get_universe()
     now      = datetime.now()
-    ranked   = run_single_scan(universe, api)
-    alloc    = sig.build_allocation(ranked)
 
+    try:
+        ranked = run_single_scan(universe, api)
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+    alloc   = sig.build_allocation(ranked)
     payload = []
+
     for i, stock in enumerate(ranked, 1):
         lvl = stock.get("levels", {})
         payload.append({
-            "rank":           i,
-            "symbol":         stock["symbol"],
-            "signal":         stock["signal"],
-            "fno":            stock["fno"],
-            "ltp":            stock["ltp"],
-            "rsi":            stock.get("rsi"),
-            "ema_fast":       stock.get("ema_fast"),
-            "ema_slow":       stock.get("ema_slow"),
-            "ema_trend":      stock.get("ema_trend"),
-            "momentum_pct":   stock.get("momentum"),
-            "volume_ratio":   stock.get("volume_ratio"),
-            "breakout":       stock.get("breakout"),
-            "score":          stock["score"],
-            "entry":          lvl.get("entry"),
-            "tg1":            lvl.get("tg1"),
-            "tg2":            lvl.get("tg2"),
-            "tg3":            lvl.get("tg3"),
-            "stop_loss":      lvl.get("stop_loss"),
-            "trailing_stop":  lvl.get("trailing_stop"),
-            "alloc_inr":      alloc.get(stock["symbol"]),
-            "alloc_usd":      round(alloc.get(stock["symbol"], 0) / config.USD_TO_INR, 2),
+            "rank":          i,
+            "symbol":        stock["symbol"],
+            "signal":        stock["signal"],
+            "fno":           stock["fno"],
+            "ltp":           stock["ltp"],
+            "rsi":           stock.get("rsi"),
+            "ema_fast":      stock.get("ema_fast"),
+            "ema_slow":      stock.get("ema_slow"),
+            "ema_trend":     stock.get("ema_trend"),
+            "momentum_pct":  stock.get("momentum"),
+            "volume_ratio":  stock.get("volume_ratio"),
+            "breakout":      stock.get("breakout"),
+            "score":         stock["score"],
+            "entry":         lvl.get("entry"),
+            "tg1":           lvl.get("tg1"),
+            "tg2":           lvl.get("tg2"),
+            "tg3":           lvl.get("tg3"),
+            "stop_loss":     lvl.get("stop_loss"),
+            "trailing_stop": lvl.get("trailing_stop"),
+            "alloc_inr":     alloc.get(stock["symbol"]),
+            "alloc_usd":     round(alloc.get(stock["symbol"], 0) / config.USD_TO_INR, 2),
         })
 
     return JSONResponse({
@@ -125,8 +147,8 @@ def scan_json(
 @app.get("/scan/table", response_class=PlainTextResponse)
 def scan_table(
     interval: str  = Query("FIVE_MINUTE"),
-    top: int       = Query(10),
-    capital: float = Query(10000),
+    top:      int  = Query(10),
+    capital:  float= Query(10000),
 ):
     config.CANDLE_INTERVAL = interval
     config.TOP_N           = top
@@ -143,10 +165,9 @@ def scan_table(
 @app.get("/scan/csv")
 def scan_csv(
     interval: str  = Query("FIVE_MINUTE"),
-    top: int       = Query(10),
-    capital: float = Query(10000),
+    top:      int  = Query(10),
+    capital:  float= Query(10000),
 ):
-    from fastapi.responses import Response
     config.CANDLE_INTERVAL = interval
     config.TOP_N           = top
     config.CAPITAL_USD     = capital
@@ -157,8 +178,8 @@ def scan_csv(
     ranked   = run_single_scan(universe, api)
     alloc    = sig.build_allocation(ranked)
     csv_data = fmt.to_csv(ranked, alloc, now)
-
     filename = f"signals_{now.strftime('%Y%m%d_%H%M%S')}.csv"
+
     return Response(
         content=csv_data,
         media_type="text/csv",
