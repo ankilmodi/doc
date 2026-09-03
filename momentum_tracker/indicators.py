@@ -95,9 +95,8 @@ def rsi(values: List[float], period: int = 14) -> List[Optional[float]]:
 
 def rsi_current(candles: List[Dict], period: int = 14) -> Optional[float]:
     """Return the latest RSI, or None if there are too few bars for a reliable reading."""
-    # Need at least period+2 closes to produce a non-degenerate RSI
-    # (period+1 diffs, with enough history to avoid 0/100 extremes)
-    if len(candles) < max(period + 2, 5):
+    # Need at least 2×period bars to produce a stable Wilder's RSI
+    if len(candles) < period * 2:
         return None
     vals = rsi(_closes(candles), period)
     for v in reversed(vals):
