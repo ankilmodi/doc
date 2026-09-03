@@ -7,7 +7,7 @@ All tunable parameters live here; no secrets are hard-coded in other modules.
 ANGEL_API_KEY    = "KvtCKM7Z"
 ANGEL_CLIENT_ID  = "A291133"
 ANGEL_PASSWORD   = "9595"
-ANGEL_TOTP_SECRET = "KIZ25VVZPQ2M2GQMVA6SWCRPUOO76DSS"
+ANGEL_TOTP_SECRET = "PX6O7SGZR2DG6GEQDB7XRNCZGY"
 
 # ── Scan timing ──────────────────────────────────────────────────────────────
 MARKET_OPEN_TIME  = "09:15"          # IST – exchange opens
