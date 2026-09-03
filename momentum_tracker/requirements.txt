@@ -1,0 +1,13 @@
+# Core Angel One SmartConnect SDK
+smartapi-python==1.4.1
+
+# TOTP generation (required by Angel One login)
+pyotp==2.9.0
+
+# HTTP requests (used by symbols.py to refresh master contract)
+requests==2.32.3
+
+# Loguru is optional – standard logging is used throughout, no extra packages needed.
+# If you prefer colorised logs, uncomment the line below and add
+# `from loguru import logger` in each module.
+# loguru==0.7.2
