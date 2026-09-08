@@ -7,35 +7,16 @@
       "config": { "maxLambdaSize": "15mb" }
     },
     {
-      "src": "public/**",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "templates/**",
+      "src": "public/index.html",
       "use": "@vercel/static"
     }
   ],
   "routes": [
-    { "src": "/login", "dest": "api/index.py" },
-    { "src": "/logout", "dest": "api/index.py" },
     { "src": "/health", "dest": "api/index.py" },
-    { "src": "/debug", "dest": "api/index.py" },
-    { "src": "/auth/login", "dest": "api/index.py" },
-    { "src": "/auth/logout", "dest": "api/index.py" },
-    { "src": "/auth/session", "dest": "api/index.py" },
-    { "src": "/auth/use-config-credentials", "dest": "api/index.py" },
-    { "src": "/scan", "dest": "api/index.py" },
-    { "src": "/scan/table", "dest": "api/index.py" },
-    { "src": "/scan/csv", "dest": "api/index.py" },
-    { "src": "/trading/mode", "dest": "api/index.py" },
-    { "src": "/trading/stats", "dest": "api/index.py" },
-    { "src": "/orders/place", "dest": "api/index.py" },
-    { "src": "/orders/modify", "dest": "api/index.py" },
-    { "src": "/orders/cancel", "dest": "api/index.py" },
-    { "src": "/orders/calculate-quantity", "dest": "api/index.py" },
-    { "src": "/orders/open", "dest": "api/index.py" },
-    { "src": "/orders/history", "dest": "api/index.py" },
-    { "src": "/orders", "dest": "api/index.py" },
+    { "src": "/auth/(.*)", "dest": "api/index.py" },
+    { "src": "/scan(.*)", "dest": "api/index.py" },
+    { "src": "/trading/(.*)", "dest": "api/index.py" },
+    { "src": "/orders(.*)", "dest": "api/index.py" },
     { "src": "/positions", "dest": "api/index.py" },
     { "src": "/trades", "dest": "api/index.py" },
     { "src": "/funds", "dest": "api/index.py" },
