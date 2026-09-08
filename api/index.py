@@ -3,17 +3,23 @@ api/index.py – FastAPI web server for the Momentum Signal Tracker.
 
 Uses Market Quote FULL mode only (no historical API – avoids 403 from
 non-Indian Vercel server IPs).
+
+Python-based session management for simplified login.
 """
 
 from __future__ import annotations
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "momentum_tracker"))
 
-from fastapi import FastAPI, Query, Body
-from fastapi.responses import PlainTextResponse, JSONResponse, Response
+from fastapi import FastAPI, Query, Body, Request, Cookie, Response
+from fastapi.responses import PlainTextResponse, JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
+from itsdangerous import URLSafeTimedSerializer, BadSignature
+import secrets
 
 import config
 import signals as sig
@@ -34,7 +40,46 @@ app.add_middleware(
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_credentials=True,
 )
+
+# ── Session Management (Python-based) ─────────────────────────────────────────
+SECRET_KEY = os.getenv("SESSION_SECRET_KEY", secrets.token_hex(32))
+serializer = URLSafeTimedSerializer(SECRET_KEY)
+SESSION_MAX_AGE = 8 * 60 * 60  # 8 hours
+
+# Store active sessions in memory (for serverless, use Redis/DB in production)
+active_sessions = {}
+
+def create_session(user_id: str) -> str:
+    """Create a new session token"""
+    session_token = serializer.dumps({"user_id": user_id, "created_at": datetime.now().isoformat()})
+    active_sessions[session_token] = {
+        "user_id": user_id,
+        "created_at": datetime.now(),
+        "expires_at": datetime.now() + timedelta(seconds=SESSION_MAX_AGE)
+    }
+    return session_token
+
+def verify_session(session_token: Optional[str]) -> Optional[Dict]:
+    """Verify session token and return session data"""
+    if not session_token:
+        return None
+    
+    if session_token not in active_sessions:
+        return None
+    
+    session_data = active_sessions[session_token]
+    if datetime.now() > session_data["expires_at"]:
+        del active_sessions[session_token]
+        return None
+    
+    return session_data
+
+def delete_session(session_token: str):
+    """Delete a session"""
+    if session_token in active_sessions:
+        del active_sessions[session_token]
 
 # ── Module-level singletons (reused across warm Vercel invocations) ───────────
 _api:      Optional[AngelConnector] = None
@@ -324,25 +369,53 @@ def scan_csv(
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# AUTHENTICATION ENDPOINT
+# AUTHENTICATION ENDPOINTS (Python Session-Based)
 # ──────────────────────────────────────────────────────────────────────────────
 
 @app.post("/auth/login")
-def user_login(credentials: Dict[str, str] = Body(...)):
+def user_login(
+    credentials: Dict[str, str] = Body(...),
+    response: Response = None
+):
     """
-    User login with their own Angel One credentials.
-    
-    Request body:
-    {
-        "client_id": "A123456",
-        "password": "password",
-        "api_key": "api_key",
-        "totp_secret": "TOTP_SECRET"
-    }
+    Simple login with Client ID and Password.
+    Validates against config.py credentials and creates Python session.
     """
     try:
-        # Temporarily update config with user credentials
-        config.ANGEL_CLIENT_ID = credentials.get("client_id")
+        client_id = credentials.get("client_id", "").strip()
+        password = credentials.get("password", "").strip()
+        
+        # Validate credentials
+        if client_id != config.ANGEL_CLIENT_ID or password != config.ANGEL_PASSWORD:
+            return JSONResponse({
+                "status": False,
+                "message": "Invalid Client ID or Password"
+            }, status_code=401)
+        
+        # Create session
+        session_token = create_session(client_id)
+        
+        # Set session cookie
+        response = JSONResponse({
+            "status": True,
+            "message": "Login successful",
+            "session_expires_in": SESSION_MAX_AGE
+        })
+        response.set_cookie(
+            key="session_token",
+            value=session_token,
+            max_age=SESSION_MAX_AGE,
+            httponly=True,
+            samesite="lax"
+        )
+        
+        return response
+        
+    except Exception as e:
+        return JSONResponse({
+            "status": False,
+            "message": str(e)
+        }, status_code=500)
         config.ANGEL_PASSWORD = credentials.get("password")
         config.ANGEL_API_KEY = credentials.get("api_key")
         config.ANGEL_TOTP_SECRET = credentials.get("totp_secret")
@@ -371,9 +444,10 @@ def user_login(credentials: Dict[str, str] = Body(...)):
 
 
 @app.post("/auth/use-config-credentials")
-def use_config_credentials():
+def use_config_credentials(response: Response = None):
     """
-    Use credentials from config.py (your credentials).
+    Quick login using credentials from config.py.
+    Creates Python session cookie.
     """
     try:
         # Force re-login with config credentials
@@ -383,18 +457,69 @@ def use_config_credentials():
         # Try to get API (will trigger login with config credentials)
         api = _get_api()
         
-        return JSONResponse({
+        # Create session
+        session_token = create_session(config.ANGEL_CLIENT_ID)
+        
+        # Set session cookie
+        response = JSONResponse({
             "status": True,
-            "message": "Login successful with config credentials",
+            "message": "Login successful",
             "data": {
                 "client_id": config.ANGEL_CLIENT_ID,
             }
         })
+        response.set_cookie(
+            key="session_token",
+            value=session_token,
+            max_age=SESSION_MAX_AGE,
+            httponly=True,
+            samesite="lax"
+        )
+        
+        return response
         
     except Exception as exc:
-        logger.error(f"Config login error: {exc}")
         return JSONResponse({
             "status": False,
+            "message": f"Login failed: {str(exc)}",
+        }, status_code=401)
+
+
+@app.post("/auth/logout")
+def logout(
+    response: Response = None,
+    session_token: Optional[str] = Cookie(None)
+):
+    """Logout and destroy session"""
+    if session_token:
+        delete_session(session_token)
+    
+    response = JSONResponse({
+        "status": True,
+        "message": "Logged out successfully"
+    })
+    response.delete_cookie("session_token")
+    return response
+
+
+@app.get("/auth/session")
+def check_session(session_token: Optional[str] = Cookie(None)):
+    """Check if session is valid"""
+    session_data = verify_session(session_token)
+    
+    if session_data:
+        remaining = int((session_data["expires_at"] - datetime.now()).total_seconds())
+        return JSONResponse({
+            "status": True,
+            "logged_in": True,
+            "user_id": session_data["user_id"],
+            "expires_in": remaining
+        })
+    else:
+        return JSONResponse({
+            "status": True,
+            "logged_in": False
+        })
             "message": f"Login failed: {str(exc)}",
         }, status_code=401)
 

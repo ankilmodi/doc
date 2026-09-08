@@ -725,112 +725,104 @@
       </form>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-primary" type="button" id="login-submit-btn">🚀 Login Now</button>
+      <button class="btn btn-primary" type="submit" id="login-submit-btn">🚀 Login Now</button>
     </div>
   </div>
 </div>
 
 <script>
 // ═══════════════════════════════════════════════════════════════════════
-// LOGIN PROTECTION - Single Page Application (SPA) Session Management
+// PYTHON SESSION-BASED LOGIN (Simplified)
 // ═══════════════════════════════════════════════════════════════════════
 
 let isLoggedIn = false;
 
-// Check if user was previously logged in (session persistence)
-function checkLoginSession() {
-  const sessionToken = localStorage.getItem('angel_session_token');
-  const sessionExpiry = localStorage.getItem('angel_session_expiry');
-  
-  if (sessionToken && sessionExpiry) {
-    const now = new Date().getTime();
-    if (now < parseInt(sessionExpiry)) {
-      // Session still valid
+// Check Python session on page load
+async function checkPythonSession() {
+  try {
+    const res = await fetch(window.location.origin + '/auth/session', {
+      credentials: 'include' // Include cookies
+    });
+    const data = await res.json();
+    
+    if (data.logged_in) {
       isLoggedIn = true;
+      showSessionInfo(data.expires_in);
       return true;
-    } else {
-      // Session expired
-      clearLoginSession();
-      return false;
     }
+  } catch (err) {
+    console.error('Session check failed:', err);
   }
   return false;
 }
 
-// Save login session (valid for 8 hours)
-function saveLoginSession() {
-  const now = new Date().getTime();
-  const expiry = now + (8 * 60 * 60 * 1000); // 8 hours
-  localStorage.setItem('angel_session_token', 'logged_in');
-  localStorage.setItem('angel_session_expiry', expiry.toString());
-  localStorage.setItem('angel_login_time', new Date().toISOString());
-}
-
-// Clear login session
-function clearLoginSession() {
-  localStorage.removeItem('angel_session_token');
-  localStorage.removeItem('angel_session_expiry');
-  localStorage.removeItem('angel_login_time');
-  isLoggedIn = false;
+// Show session expiry info
+function showSessionInfo(expiresIn) {
+  const hours = Math.floor(expiresIn / 3600);
+  const minutes = Math.floor((expiresIn % 3600) / 60);
+  
+  const sessionInfo = document.getElementById('session-info');
+  const sessionTime = document.getElementById('session-time');
+  if (sessionInfo && sessionTime) {
+    sessionInfo.style.display = 'inline';
+    sessionTime.textContent = `${hours}h ${minutes}m remaining`;
+  }
 }
 
 // Ensure content stays hidden until login
 function enforceLoginProtection() {
+  const mainEl = document.querySelector('main');
+  const controlsEl = document.querySelector('.controls');
+  const modalEl = document.getElementById('login-modal');
+  const loginBtn = document.getElementById('btn-login');
+  const logoutBtn = document.getElementById('btn-logout');
+  
   if (!isLoggedIn) {
-    document.querySelector('main').style.display = 'none';
-    document.querySelector('.controls').style.display = 'none';
-    document.getElementById('login-modal').style.display = 'flex';
-    
-    // Update buttons
-    const loginBtn = document.getElementById('btn-login');
-    const logoutBtn = document.getElementById('btn-logout');
+    if (mainEl) mainEl.style.display = 'none';
+    if (controlsEl) controlsEl.style.display = 'none';
+    if (modalEl) modalEl.style.display = 'flex';
     if (loginBtn) loginBtn.style.display = 'inline-block';
     if (logoutBtn) logoutBtn.style.display = 'none';
   } else {
-    // User is logged in - show content
-    document.querySelector('main').style.display = 'block';
-    document.querySelector('.controls').style.display = 'flex';
-    document.getElementById('login-modal').style.display = 'none';
-    
-    // Update buttons
-    const loginBtn = document.getElementById('btn-login');
-    const logoutBtn = document.getElementById('btn-logout');
+    if (mainEl) mainEl.style.display = 'block';
+    if (controlsEl) controlsEl.style.display = 'flex';
+    if (modalEl) modalEl.style.display = 'none';
     if (loginBtn) loginBtn.style.display = 'none';
     if (logoutBtn) logoutBtn.style.display = 'inline-block';
   }
 }
 
-// Check session on page load
-if (checkLoginSession()) {
-  console.log('Session restored - user already logged in');
-  updateSessionTimer();
-  setInterval(updateSessionTimer, 60000); // Update every minute
-}
+// Check session on load
+checkPythonSession().then(sessionValid => {
+  if (sessionValid) {
+    console.log('Python session valid - user logged in');
+  }
+  enforceLoginProtection();
+});
 
 // Call immediately
 enforceLoginProtection();
 
 function quickLogin() {
-  console.log('Quick login called');
+  console.log('Quick login called - using Python session');
+  
   fetch(window.location.origin + '/auth/use-config-credentials', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' }
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include' // Include cookies
   })
   .then(res => res.json())
   .then(data => {
     console.log('Response:', data);
     if (data.status) {
       isLoggedIn = true;
-      saveLoginSession(); // Save session for SPA persistence
-      alert('✅ Login successful! Session saved for 8 hours.');
-      enforceLoginProtection(); // Update UI
+      alert('✅ Login successful! Python session created (8 hours).');
+      enforceLoginProtection();
       
-      // Start session timer
-      updateSessionTimer();
-      setInterval(updateSessionTimer, 60000); // Update every minute
+      // Check session info
+      checkPythonSession();
     } else {
       isLoggedIn = false;
-      clearLoginSession();
       alert('❌ Login failed: ' + data.message);
       enforceLoginProtection();
     }
@@ -838,7 +830,6 @@ function quickLogin() {
   .catch(err => {
     console.error('Error:', err);
     isLoggedIn = false;
-    clearLoginSession();
     alert('❌ Login failed: ' + err.message);
     enforceLoginProtection();
   });
@@ -848,23 +839,36 @@ function handleLogout() {
   console.log('Logout called');
   
   if (confirm('Are you sure you want to logout?')) {
-    isLoggedIn = false;
-    clearLoginSession(); // Clear SPA session
-    
-    // Hide main content immediately
-    enforceLoginProtection();
-    
-    // Stop any scanning
-    if (window.scanInterval) {
-      clearInterval(window.scanInterval);
-      window.scanInterval = null;
-    }
-    if (window.countdownInterval) {
-      clearInterval(window.countdownInterval);
-      window.countdownInterval = null;
-    }
-    
-    alert('Logged out successfully! Session cleared.');
+    // Call Python logout endpoint
+    fetch(window.location.origin + '/auth/logout', {
+      method: 'POST',
+      credentials: 'include'
+    })
+    .then(res => res.json())
+    .then(data => {
+      isLoggedIn = false;
+      
+      // Hide main content immediately
+      enforceLoginProtection();
+      
+      // Stop any scanning
+      if (window.scanInterval) {
+        clearInterval(window.scanInterval);
+        window.scanInterval = null;
+      }
+      if (window.countdownInterval) {
+        clearInterval(window.countdownInterval);
+        window.countdownInterval = null;
+      }
+      
+      alert('✅ Logged out successfully! Python session destroyed.');
+    })
+    .catch(err => {
+      console.error('Logout error:', err);
+      // Force logout even if API fails
+      isLoggedIn = false;
+      enforceLoginProtection();
+    });
   }
 }
 
@@ -881,13 +885,18 @@ document.addEventListener('DOMContentLoaded', function() {
   // Enforce protection on load
   enforceLoginProtection();
   
+  // Attach login button event handler
   const btn = document.getElementById('login-submit-btn');
   if (btn) {
-    btn.onclick = function() {
+    btn.onclick = function(e) {
+      e.preventDefault();
       console.log('Login button clicked!');
       quickLogin();
+      return false;
     };
-    console.log('Login button event attached');
+    console.log('Login button event attached successfully');
+  } else {
+    console.error('Login button not found!');
   }
 });
 
@@ -905,44 +914,10 @@ setInterval(enforceLoginProtection, 1000);
   let refreshSecs = 100;
   let remaining = 100;
   let lastData = null;
-  let isLoggedIn = false;
 
   // ═══════════════════════════════════════════════════════════════════════
   // LOGIN MANAGEMENT
   // ═══════════════════════════════════════════════════════════════════════
-
-  // Check login on page load
-  window.addEventListener('DOMContentLoaded', () => {
-    checkLoginStatus();
-    
-    // Add event listener to login button as backup
-    const loginBtn = document.getElementById('login-submit-btn');
-    if (loginBtn) {
-      loginBtn.addEventListener('click', function(e) {
-        e.preventDefault();
-        console.log('Login button clicked via event listener');
-        submitLogin();
-      });
-    }
-  });
-
-  async function checkLoginStatus() {
-    try {
-      const res = await fetch(`${API}/health`);
-      const data = await res.json();
-      
-      if (data.status === 'ok' && data.session === 'active') {
-        isLoggedIn = true;
-        hideLoginModal();
-        document.getElementById('btn-login').textContent = '✅ Logged In';
-        document.getElementById('btn-login').disabled = true;
-      } else {
-        showLoginModal();
-      }
-    } catch (err) {
-      showLoginModal();
-    }
-  }
 
   function showLoginModal() {
     document.getElementById('login-modal').style.display = 'flex';
@@ -966,29 +941,6 @@ setInterval(enforceLoginProtection, 1000);
     document.querySelector('main').style.display = 'block';
     document.querySelector('.controls').style.display = 'flex';
   }
-
-  async function useMyCredentials() {
-    // Use credentials from backend config
-    try {
-      const res = await fetch(`${API}/auth/use-config-credentials`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      const data = await res.json();
-
-      if (data.status) {
-        isLoggedIn = true;
-        toast('Logged in with config credentials!', 'success');
-        hideLoginModal();
-        document.getElementById('btn-login').textContent = '✅ Logged In';
-        document.getElementById('btn-login').disabled = true;
-      } else {
-        toast('Login failed: ' + (data.message || 'Check config.py'), 'error');
-      }
-    } catch (err) {
-      console.error('[useMyCredentials]', err);
-      toast('Login failed: ' + err.message, 'error');
-    }
   }
 
   async function submitLogin() {
