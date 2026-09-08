@@ -118,14 +118,22 @@ def _get_order_service() -> OrderService:
 
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request, session_token: Optional[str] = Cookie(None)):
-    """Main page - serve index.html directly (no login redirect)"""
-    try:
-        index_path = os.path.join(os.path.dirname(__file__), "..", "public", "index.html")
-        with open(index_path, "r", encoding="utf-8") as f:
-            html_content = f.read()
-        return HTMLResponse(content=html_content)
-    except FileNotFoundError:
-        return HTMLResponse("<h1>Error: index.html not found</h1>", status_code=500)
+    """Main page - serve index.html"""
+    # Try multiple paths to handle different environments
+    candidates = [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "public", "index.html"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "public", "index.html"),
+        "/var/task/public/index.html",
+        "public/index.html",
+    ]
+    for index_path in candidates:
+        try:
+            with open(index_path, "r", encoding="utf-8") as f:
+                return HTMLResponse(content=f.read())
+        except FileNotFoundError:
+            continue
+    tried = " | ".join(candidates)
+    return HTMLResponse(f"<h1>index.html not found. Tried: {tried}</h1>", status_code=500)
 
 
 @app.get("/logout")
