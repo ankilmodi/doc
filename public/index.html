@@ -474,10 +474,17 @@
     </div>
   </div>
   <div class="header-right">
+    <div class="status-pill" style="background:rgba(255,193,7,0.1);border-color:rgba(255,193,7,0.3);margin-right:12px" title="Trading Mode">
+      <div class="dot" style="background:var(--yellow)"></div>
+      <span id="trading-mode-text" style="color:var(--yellow);font-weight:600">PAPER MODE</span>
+    </div>
     <div class="status-pill">
       <div class="dot" id="status-dot"></div>
       <span id="status-text">Idle</span>
     </div>
+    <span id="session-info" style="font-size:11px;color:var(--muted);margin-right:12px;display:none">
+      Session: <span id="session-time"></span>
+    </span>
     <button class="btn btn-outline" id="btn-login" onclick="showLoginModal()">🔐 Login</button>
     <button class="btn btn-outline" id="btn-logout" onclick="handleLogout()" style="display:none">🚪 Logout</button>
     <span id="last-updated">—</span>
@@ -507,6 +514,7 @@
     <input type="number" id="capital" value="10000" min="100" step="500" />
   </div>
   <div class="spacer"></div>
+  <button class="btn btn-outline" id="btn-refresh" onclick="refreshAllData()" title="Refresh Orders & Positions">🔄 Refresh Data</button>
   <button class="btn btn-outline" id="btn-csv" onclick="downloadCSV()" disabled>⬇ CSV</button>
   <button class="btn btn-primary"  id="btn-scan" onclick="startScan()">▶ Start Scan</button>
   <button class="btn btn-outline"  id="btn-stop" onclick="stopScan()" disabled>⏹ Stop</button>
@@ -700,10 +708,10 @@
       <span class="modal-close" onclick="closeLoginModal()">&times;</span>
     </div>
     <div class="modal-body">
-      <form id="login-form" onsubmit="submitLogin(); return false;">
+      <form id="login-form" onsubmit="quickLogin(); return false;">
         <div class="form-group">
           <label>Client ID</label>
-          <input type="text" id="login-client-id" placeholder="Your Angel One Client ID" value="A291133" required>
+          <input type="text" id="login-client-id" placeholder="Your Angel One Client ID" value="A291133" required autofocus>
         </div>
         <div class="form-group">
           <label>Password</label>
@@ -711,13 +719,13 @@
         </div>
         <div style="background:var(--surface2);padding:12px;border-radius:6px;font-size:12px;color:var(--muted);margin-top:12px">
           ℹ️ Using simplified login. API credentials are configured on the backend.
+          <br><br>
+          💡 <strong>Quick Login:</strong> Press <kbd style="background:var(--surface);padding:2px 6px;border-radius:3px;border:1px solid var(--border)">Enter</kbd> to login instantly
         </div>
       </form>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-outline" type="button" onclick="closeLoginModal()">Cancel</button>
-      <button class="btn btn-success" type="button" onclick="useMyCredentials()">Use My Credentials</button>
-      <button class="btn btn-primary" type="button" id="login-submit-btn">Login</button>
+      <button class="btn btn-primary" type="button" id="login-submit-btn">🚀 Login Now</button>
     </div>
   </div>
 </div>
@@ -795,6 +803,8 @@ function enforceLoginProtection() {
 // Check session on page load
 if (checkLoginSession()) {
   console.log('Session restored - user already logged in');
+  updateSessionTimer();
+  setInterval(updateSessionTimer, 60000); // Update every minute
 }
 
 // Call immediately
@@ -812,12 +822,16 @@ function quickLogin() {
     if (data.status) {
       isLoggedIn = true;
       saveLoginSession(); // Save session for SPA persistence
-      alert('Login successful! Session saved for 8 hours.');
+      alert('✅ Login successful! Session saved for 8 hours.');
       enforceLoginProtection(); // Update UI
+      
+      // Start session timer
+      updateSessionTimer();
+      setInterval(updateSessionTimer, 60000); // Update every minute
     } else {
       isLoggedIn = false;
       clearLoginSession();
-      alert('Login failed: ' + data.message);
+      alert('❌ Login failed: ' + data.message);
       enforceLoginProtection();
     }
   })
@@ -825,7 +839,7 @@ function quickLogin() {
     console.error('Error:', err);
     isLoggedIn = false;
     clearLoginSession();
-    alert('Login failed: ' + err.message);
+    alert('❌ Login failed: ' + err.message);
     enforceLoginProtection();
   });
 }
@@ -1259,6 +1273,68 @@ setInterval(enforceLoginProtection, 1000);
   }
 
   function stopScan() {
+    if (scanInterval) clearInterval(scanInterval);
+    clearInterval(countdownInterval);
+    scanInterval = null;
+    document.getElementById('btn-scan').disabled = false;
+    document.getElementById('btn-stop').disabled = true;
+    document.getElementById('countdown-fill').style.width = '100%';
+    toast('Scan stopped', 'success');
+  }
+
+  // ── Refresh All Data ──────────────────────────────────────────────────────
+  async function refreshAllData() {
+    const btn = document.getElementById('btn-refresh');
+    btn.disabled = true;
+    btn.textContent = '⏳ Refreshing...';
+    
+    try {
+      // Refresh based on active tab
+      const activeTab = document.querySelector('.tab-content.active');
+      if (activeTab) {
+        if (activeTab.id === 'open-orders-tab') {
+          await fetchOpenOrders();
+        } else if (activeTab.id === 'order-history-tab') {
+          await fetchOrderHistory();
+        } else if (activeTab.id === 'positions-tab') {
+          await fetchPositions();
+        }
+      }
+      toast('Data refreshed successfully', 'success');
+    } catch (err) {
+      toast('Refresh failed: ' + err.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '🔄 Refresh Data';
+    }
+  }
+
+  // ── Update Session Timer ──────────────────────────────────────────────────
+  function updateSessionTimer() {
+    const loginTime = localStorage.getItem('angel_login_time');
+    const sessionExpiry = localStorage.getItem('angel_session_expiry');
+    
+    if (!loginTime || !sessionExpiry) return;
+    
+    const now = new Date().getTime();
+    const expiry = parseInt(sessionExpiry);
+    const remaining = expiry - now;
+    
+    if (remaining <= 0) {
+      document.getElementById('session-info').style.display = 'none';
+      return;
+    }
+    
+    const hours = Math.floor(remaining / (1000 * 60 * 60));
+    const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+    
+    const sessionInfo = document.getElementById('session-info');
+    const sessionTime = document.getElementById('session-time');
+    sessionInfo.style.display = 'inline';
+    sessionTime.textContent = `${hours}h ${minutes}m remaining`;
+  }
+
+  function stopScan() {
     clearInterval(scanInterval);
     clearInterval(countdownInterval);
     scanInterval = null;
@@ -1307,9 +1383,26 @@ setInterval(enforceLoginProtection, 1000);
 
   // ── Quick Order from Signal ───────────────────────────────────────────
   async function placeQuickOrder(symbol, symboltoken, side, ordertype, ltp, entry, stopLoss, target) {
-    if (!confirm(`Place ${side} ${ordertype} order for ${symbol} at ₹${ltp}?`)) {
+    // Confirmation dialog with details
+    const confirmMsg = `
+📊 Order Confirmation
+
+Symbol: ${symbol}
+Side: ${side}
+Type: ${ordertype}
+LTP: ₹${ltp}
+Entry: ₹${entry}
+Stop Loss: ₹${stopLoss}
+Target: ₹${target}
+
+Place this order?`;
+
+    if (!confirm(confirmMsg)) {
       return;
     }
+
+    // Show loading
+    toast('⏳ Placing order...', 'success');
 
     const orderData = {
       symbol: symbol,
@@ -1331,15 +1424,18 @@ setInterval(enforceLoginProtection, 1000);
       const data = await res.json();
 
       if (data.status) {
-        toast(`Order placed: ${data.data?.orderid || 'Success'}`, 'success');
-        fetchOpenOrders();
-        fetchPositions();
+        toast(`✅ Order placed successfully! ID: ${data.data?.orderid || 'Success'}`, 'success');
+        // Auto refresh orders and positions
+        setTimeout(() => {
+          fetchOpenOrders();
+          fetchPositions();
+        }, 1000);
       } else {
-        toast(`Order failed: ${data.message}`, 'error');
+        toast(`❌ Order failed: ${data.message}`, 'error');
       }
     } catch (err) {
       console.error('[placeQuickOrder]', err);
-      toast('Order placement failed', 'error');
+      toast('❌ Order placement failed: ' + err.message, 'error');
     }
   }
 

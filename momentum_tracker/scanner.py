@@ -63,31 +63,51 @@ def process_symbol(
         logger.debug("%s: only %d bar(s) in cache – using relaxed thresholds.",
                      symbol, len(candles))
 
-    # ── 5-day volume: use today's cumulative volume as proxy ──────────────────
+    # ── Volume ratio: prefer intra-candle comparison over flat daily proxy ────
+    # The flat daily_vols list (all same value) always gives ratio=1.0 which
+    # fails the VOLUME_SPIKE_MULT >= 1.5 gate. Instead:
+    #   • If we have 3+ cached bars: compare latest bar volume vs previous avg.
+    #   • If only 1-2 bars: compare today's tradeVolume vs open-auction volume
+    #     proxy (high-low spread heuristic) – or just pass None to skip filter.
     today_vol = int(quote.get("tradeVolume", quote.get("volume", 0)))
-    # Build a proxy daily volume list (flat baseline → ratio = 1.0)
-    daily_vols = [today_vol] * config.VOLUME_AVG_DAYS if today_vol > 0 else []
+
+    if len(candles) >= 3:
+        prev_vols   = [c["volume"] for c in candles[:-1] if c["volume"] > 0]
+        avg_prev    = sum(prev_vols) / len(prev_vols) if prev_vols else 0
+        current_vol = candles[-1]["volume"]
+        computed_ratio = (current_vol / avg_prev) if avg_prev > 0 else None
+        # Pass an empty daily_vols so compute_indicators uses computed_ratio below
+        daily_vols = []
+    elif len(candles) == 2:
+        # Compare two bars directly
+        prev_vol    = candles[0]["volume"] or 1
+        current_vol = candles[1]["volume"]
+        computed_ratio = current_vol / prev_vol if prev_vol > 0 else None
+        daily_vols = []
+    else:
+        # Cold start: single bar — cannot compute a meaningful spike ratio.
+        # Pass None so signal detection skips the volume gate.
+        computed_ratio = None
+        daily_vols = []
 
     # ── Compute indicators ────────────────────────────────────────────────────
+    n = len(candles)
     indicators = ind.compute_indicators(
         candles=candles,
-        daily_volumes=daily_vols,
-        rsi_period=min(config.RSI_PERIOD, max(len(candles) - 1, 1)),
-        ema_fast=min(config.EMA_FAST, max(len(candles) - 1, 1)),
-        ema_slow=min(config.EMA_SLOW, max(len(candles) - 1, 1)),
-        mom_period=min(config.MOMENTUM_PERIOD, max(len(candles) - 1, 1)),
+        daily_volumes=daily_vols,   # empty → volume_ratio will be None
+        rsi_period=min(config.RSI_PERIOD, max(n - 1, 2)),
+        ema_fast=min(config.EMA_FAST, max(n - 1, 2)),
+        ema_slow=min(config.EMA_SLOW, max(n - 1, 2)),
+        mom_period=min(config.MOMENTUM_PERIOD, max(n - 1, 2)),
     )
 
     if not indicators:
         return None
 
-    # For volume ratio: compare current bar volume vs. previous bars' avg
-    if len(candles) >= 3:
-        prev_vols = [c["volume"] for c in candles[:-1]]
-        avg_prev  = sum(prev_vols) / len(prev_vols) if prev_vols else 1
-        current_vol = candles[-1]["volume"]
-        live_ratio  = current_vol / avg_prev if avg_prev > 0 else 1.0
-        indicators["volume_ratio"] = round(live_ratio, 3)
+    # Override volume_ratio with our intra-candle computed value
+    if computed_ratio is not None:
+        indicators["volume_ratio"] = round(computed_ratio, 3)
+    # else: leave as None — signal detector will skip volume gate (cold start)
 
     # ── Detect & score ────────────────────────────────────────────────────────
     signal = sig.detect_signal(indicators)
