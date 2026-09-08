@@ -7,32 +7,31 @@
       "config": { "maxLambdaSize": "15mb" }
     },
     {
-      "src": "public/**",
+      "src": "public/index.html",
       "use": "@vercel/static"
     }
   ],
   "routes": [
-    { "src": "/api/health",     "dest": "api/index.py" },
-    { "src": "/api/debug",      "dest": "api/index.py" },
-    { "src": "/api/scan",       "dest": "api/index.py" },
-    { "src": "/api/scan/table", "dest": "api/index.py" },
-    { "src": "/api/scan/csv",   "dest": "api/index.py" },
-    { "src": "/api/trading/mode", "dest": "api/index.py" },
-    { "src": "/api/trading/stats", "dest": "api/index.py" },
-    { "src": "/api/orders/place", "dest": "api/index.py" },
-    { "src": "/api/orders/modify", "dest": "api/index.py" },
-    { "src": "/api/orders/cancel", "dest": "api/index.py" },
-    { "src": "/api/orders/calculate-quantity", "dest": "api/index.py" },
-    { "src": "/api/orders/open", "dest": "api/index.py" },
-    { "src": "/api/orders/history", "dest": "api/index.py" },
-    { "src": "/api/orders", "dest": "api/index.py" },
-    { "src": "/api/positions", "dest": "api/index.py" },
-    { "src": "/api/trades", "dest": "api/index.py" },
-    { "src": "/api/funds", "dest": "api/index.py" },
+    { "src": "/health", "dest": "api/index.py" },
+    { "src": "/debug", "dest": "api/index.py" },
+    { "src": "/scan", "dest": "api/index.py" },
+    { "src": "/scan/table", "dest": "api/index.py" },
+    { "src": "/scan/csv", "dest": "api/index.py" },
+    { "src": "/trading/mode", "dest": "api/index.py" },
+    { "src": "/trading/stats", "dest": "api/index.py" },
+    { "src": "/orders/place", "dest": "api/index.py" },
+    { "src": "/orders/modify", "dest": "api/index.py" },
+    { "src": "/orders/cancel", "dest": "api/index.py" },
+    { "src": "/orders/calculate-quantity", "dest": "api/index.py" },
+    { "src": "/orders/open", "dest": "api/index.py" },
+    { "src": "/orders/history", "dest": "api/index.py" },
+    { "src": "/orders", "dest": "api/index.py" },
+    { "src": "/positions", "dest": "api/index.py" },
+    { "src": "/trades", "dest": "api/index.py" },
+    { "src": "/funds", "dest": "api/index.py" },
     { "src": "/", "dest": "public/index.html" },
-    { "src": "/(.*)\\.js$", "dest": "public/$1.js" },
-    { "src": "/(.*)\\.css$", "dest": "public/$1.css" },
-    { "src": "/(.*)\\.html$", "dest": "public/$1.html" },
-    { "src": "/(.*)", "dest": "public/$1" }
+    { "src": "/(.*\\.js)", "dest": "public/$1" },
+    { "src": "/(.*\\.css)", "dest": "public/$1" },
+    { "src": "/(.*\\.html)", "dest": "public/$1" }
   ]
 }
