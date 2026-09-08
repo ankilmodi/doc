@@ -725,7 +725,7 @@
       </form>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-primary" type="submit" id="login-submit-btn">🚀 Login Now</button>
+      <button class="btn btn-primary" type="submit" id="login-submit-btn" onclick="quickLogin(); return false;">🚀 Login Now</button>
     </div>
   </div>
 </div>
@@ -884,20 +884,7 @@ function closeLoginModal() {
 document.addEventListener('DOMContentLoaded', function() {
   // Enforce protection on load
   enforceLoginProtection();
-  
-  // Attach login button event handler
-  const btn = document.getElementById('login-submit-btn');
-  if (btn) {
-    btn.onclick = function(e) {
-      e.preventDefault();
-      console.log('Login button clicked!');
-      quickLogin();
-      return false;
-    };
-    console.log('Login button event attached successfully');
-  } else {
-    console.error('Login button not found!');
-  }
+  console.log('Page loaded - login protection enforced');
 });
 
 // Also enforce protection every 1 second as backup
