@@ -30,7 +30,9 @@ from scanner import run_single_scan
 from order_service import OrderService, OrderRequest
 
 # Setup Jinja2 templates
-templates = Jinja2Templates(directory="templates")
+import os
+templates_dir = os.path.join(os.path.dirname(__file__), "..", "templates")
+templates = Jinja2Templates(directory=templates_dir)
 
 app = FastAPI(
     title="Momentum Signal Tracker",
@@ -134,13 +136,125 @@ async def root(request: Request, session_token: Optional[str] = Cookie(None)):
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request, session_token: Optional[str] = Cookie(None)):
-    """Show login page (Python template)"""
+    """Show login page (inline HTML - no template file needed)"""
     # If already logged in, redirect to main page
     session_data = verify_session(session_token)
     if session_data:
         return RedirectResponse(url="/", status_code=302)
     
-    return templates.TemplateResponse("login.html", {"request": request, "error": None})
+    # Inline HTML (no template file dependency)
+    html = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Login - Momentum Signal Tracker</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+          background: #0d1117;
+          color: #e6edf3;
+          font-family: 'Segoe UI', system-ui, sans-serif;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 100vh;
+        }
+        .login-card {
+          background: #161b22;
+          border: 1px solid #30363d;
+          border-radius: 12px;
+          padding: 32px;
+          width: 90%;
+          max-width: 400px;
+          box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        }
+        h1 {
+          font-size: 24px;
+          margin-bottom: 8px;
+          color: #58a6ff;
+        }
+        .subtitle {
+          color: #8b949e;
+          font-size: 14px;
+          margin-bottom: 24px;
+        }
+        .form-group {
+          margin-bottom: 16px;
+        }
+        label {
+          display: block;
+          font-size: 13px;
+          font-weight: 600;
+          margin-bottom: 6px;
+          color: #e6edf3;
+        }
+        input {
+          width: 100%;
+          padding: 12px;
+          background: #0d1117;
+          border: 1px solid #30363d;
+          border-radius: 6px;
+          color: #e6edf3;
+          font-size: 14px;
+        }
+        input:focus {
+          outline: none;
+          border-color: #58a6ff;
+        }
+        .btn {
+          width: 100%;
+          padding: 12px;
+          background: #238636;
+          color: white;
+          border: none;
+          border-radius: 6px;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          margin-top: 8px;
+        }
+        .btn:hover {
+          background: #2ea043;
+        }
+        .info-box {
+          background: #21262d;
+          padding: 12px;
+          border-radius: 6px;
+          font-size: 12px;
+          color: #8b949e;
+          margin-top: 16px;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="login-card">
+        <h1>🔐 Login</h1>
+        <p class="subtitle">Momentum Signal Tracker</p>
+        
+        <form method="POST" action="/login">
+          <div class="form-group">
+            <label>Client ID</label>
+            <input type="text" name="client_id" value="A291133" required autofocus>
+          </div>
+          
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" name="password" value="9595" required>
+          </div>
+          
+          <button type="submit" class="btn">🚀 Login Now</button>
+        </form>
+        
+        <div class="info-box">
+          ℹ️ Session valid for 8 hours. All Python-based.
+        </div>
+      </div>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html)
 
 
 @app.post("/login", response_class=HTMLResponse)
@@ -153,10 +267,130 @@ async def login_submit(
     
     # Validate credentials
     if client_id.strip() != config.ANGEL_CLIENT_ID or password.strip() != config.ANGEL_PASSWORD:
-        return templates.TemplateResponse(
-            "login.html",
-            {"request": request, "error": "Invalid Client ID or Password"}
-        )
+        # Show error
+        html = f"""
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Login - Momentum Signal Tracker</title>
+          <style>
+            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+            body {{
+              background: #0d1117;
+              color: #e6edf3;
+              font-family: 'Segoe UI', system-ui, sans-serif;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              min-height: 100vh;
+            }}
+            .login-card {{
+              background: #161b22;
+              border: 1px solid #30363d;
+              border-radius: 12px;
+              padding: 32px;
+              width: 90%;
+              max-width: 400px;
+              box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            }}
+            h1 {{
+              font-size: 24px;
+              margin-bottom: 8px;
+              color: #58a6ff;
+            }}
+            .subtitle {{
+              color: #8b949e;
+              font-size: 14px;
+              margin-bottom: 24px;
+            }}
+            .error {{
+              background: rgba(248,81,73,0.1);
+              border: 1px solid #f85149;
+              color: #f85149;
+              padding: 12px;
+              border-radius: 6px;
+              margin-bottom: 16px;
+              font-size: 13px;
+            }}
+            .form-group {{
+              margin-bottom: 16px;
+            }}
+            label {{
+              display: block;
+              font-size: 13px;
+              font-weight: 600;
+              margin-bottom: 6px;
+              color: #e6edf3;
+            }}
+            input {{
+              width: 100%;
+              padding: 12px;
+              background: #0d1117;
+              border: 1px solid #30363d;
+              border-radius: 6px;
+              color: #e6edf3;
+              font-size: 14px;
+            }}
+            input:focus {{
+              outline: none;
+              border-color: #58a6ff;
+            }}
+            .btn {{
+              width: 100%;
+              padding: 12px;
+              background: #238636;
+              color: white;
+              border: none;
+              border-radius: 6px;
+              font-size: 14px;
+              font-weight: 600;
+              cursor: pointer;
+              margin-top: 8px;
+            }}
+            .btn:hover {{
+              background: #2ea043;
+            }}
+            .info-box {{
+              background: #21262d;
+              padding: 12px;
+              border-radius: 6px;
+              font-size: 12px;
+              color: #8b949e;
+              margin-top: 16px;
+            }}
+          </style>
+        </head>
+        <body>
+          <div class="login-card">
+            <h1>🔐 Login</h1>
+            <p class="subtitle">Momentum Signal Tracker</p>
+            
+            <div class="error">❌ Invalid Client ID or Password</div>
+            
+            <form method="POST" action="/login">
+              <div class="form-group">
+                <label>Client ID</label>
+                <input type="text" name="client_id" value="{client_id}" required autofocus>
+              </div>
+              
+              <div class="form-group">
+                <label>Password</label>
+                <input type="password" name="password" required>
+              </div>
+              
+              <button type="submit" class="btn">🚀 Login Now</button>
+            </form>
+            
+            <div class="info-box">
+              ℹ️ Session valid for 8 hours. All Python-based.
+            </div>
+          </div>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=html)
     
     # Create session
     session_token = create_session(client_id)
@@ -167,10 +401,15 @@ async def login_submit(
         _api = None
         api = _get_api()
     except Exception as e:
-        return templates.TemplateResponse(
-            "login.html",
-            {"request": request, "error": f"Angel One login failed: {str(e)}"}
-        )
+        html = f"""
+        <!DOCTYPE html>
+        <html><body style="background:#0d1117;color:#e6edf3;font-family:sans-serif;padding:20px">
+        <h1>Angel One Login Failed</h1>
+        <p style="color:#f85149">{str(e)}</p>
+        <a href="/login" style="color:#58a6ff">Back to Login</a>
+        </body></html>
+        """
+        return HTMLResponse(content=html)
     
     # Redirect to main page with session cookie
     response = RedirectResponse(url="/", status_code=302)
