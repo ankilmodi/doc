@@ -596,6 +596,16 @@ _INDEX_HTML = """<!DOCTYPE html>
       <div class="dot" style="background:var(--yellow)"></div>
       <span id="trading-mode-text" style="color:var(--yellow);font-weight:600">PAPER MODE</span>
     </div>
+    <!-- ── Balance Widget ── -->
+    <div id="balance-widget" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:5px 14px;font-size:12px;gap:14px;display:none;align-items:center;flex-wrap:wrap">
+      <span title="Available Credit Balance" style="color:var(--green)">
+        💰 Credit: <strong id="balance-credit">—</strong>
+      </span>
+      <span style="color:var(--border)">|</span>
+      <span title="Used / Utilized Balance" style="color:var(--red)">
+        📉 Used: <strong id="balance-used">—</strong>
+      </span>
+    </div>
     <div class="status-pill">
       <div class="dot" id="status-dot"></div>
       <span id="status-text">Idle</span>
@@ -877,6 +887,7 @@ function doLogin() {
       document.querySelector('main').style.display = 'block';
       document.querySelector('.controls').style.display = 'flex';
       document.getElementById('btn-logout').style.display = 'inline-block';
+      fetchBalance();
     } else {
       alert('❌ Login Failed: ' + d.message);
       btn.textContent = '🚀 Login Now';
@@ -949,6 +960,24 @@ function showSessionInfo(expiresIn) {
   }
 }
 
+// Fetch and display balance
+async function fetchBalance() {
+  try {
+    const res = await fetch(window.location.origin + '/funds', { credentials: 'include' });
+    const data = await res.json();
+    if (data.status && data.data) {
+      const credit = data.data.availablecash || data.data.net || 0;
+      const used   = data.data.utiliseddebits || data.data.utilisedmargin || 0;
+      const fmt = v => '₹' + Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      document.getElementById('balance-credit').textContent = fmt(credit);
+      document.getElementById('balance-used').textContent   = fmt(used);
+      document.getElementById('balance-widget').style.display = 'flex';
+    }
+  } catch (err) {
+    console.error('Balance fetch failed:', err);
+  }
+}
+
 // Ensure content stays hidden until login
 function enforceLoginProtection() {
   const mainEl = document.querySelector('main');
@@ -976,6 +1005,7 @@ function enforceLoginProtection() {
 checkPythonSession().then(sessionValid => {
   if (sessionValid) {
     console.log('Python session valid - user logged in');
+    fetchBalance();
   }
   enforceLoginProtection();
 });
@@ -1110,6 +1140,7 @@ setInterval(enforceLoginProtection, 1000);
         isLoggedIn = true;
         toast('Login successful!', 'success');
         hideLoginModal();
+        fetchBalance();
         const headerBtn = document.getElementById('btn-login');
         if (headerBtn) {
           headerBtn.textContent = '✅ Logged In';
@@ -1310,7 +1341,7 @@ setInterval(enforceLoginProtection, 1000);
     }
 
     document.getElementById('alloc-total').textContent =
-      `Total: $${capital.toLocaleString()} USD · ₹${totalInr.toLocaleString('en-IN')}`;
+      `Total: ${capital.toLocaleString()} USD · ₹${totalInr.toLocaleString('en-IN')}`;
 
     grid.innerHTML = results.map(r => {
       const inr  = r.alloc_inr || 0;
@@ -1329,7 +1360,7 @@ setInterval(enforceLoginProtection, 1000);
           </div>
           <div style="text-align:right">
             <div class="alloc-inr">₹${Math.round(inr).toLocaleString('en-IN')}</div>
-            <div class="alloc-usd">$${usd.toFixed(2)}</div>
+            <div class="alloc-usd">${usd.toFixed(2)}</div>
           </div>
         </div>
         <div class="alloc-pct-bar">
@@ -1705,6 +1736,9 @@ Place this order?`;
       fetchPositions();
     }
   }, 10000);
+
+  // ── Auto-refresh balance every 60 seconds ────────────────────────────
+  setInterval(() => { if (isLoggedIn) fetchBalance(); }, 60000);
 
 </script>
 </body>
