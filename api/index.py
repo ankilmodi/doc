@@ -531,8 +531,6 @@ def check_session(session_token: Optional[str] = Cookie(None)):
             "status": True,
             "logged_in": False
         })
-            "message": f"Login failed: {str(exc)}",
-        }, status_code=401)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
