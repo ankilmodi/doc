@@ -324,6 +324,56 @@
       main   { padding: 14px 12px; }
       .controls { padding: 10px 12px; }
     }
+
+    /* Order Management Styles */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .tab {
+      padding: 10px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--muted);
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .btn-sm {
+      padding: 4px 10px;
+      font-size: 11px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      cursor: pointer;
+      margin-right: 4px;
+      transition: all 0.2s;
+    }
+
+    .btn-sm:hover {
+      background: var(--surface);
+      border-color: var(--blue);
+    }
+
+    .btn-danger {
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    .btn-danger:hover {
+      background: rgba(248,81,73,0.1);
+    }
   </style>
 </head>
 <body>
@@ -436,6 +486,7 @@
           <th>TG3</th>
           <th>Stop Loss</th>
           <th>Trail Stop</th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody id="signals-body">
@@ -459,6 +510,88 @@
   <div class="alloc-grid" id="alloc-grid">
     <div style="color:var(--muted);font-size:13px;padding:20px 0">
       Allocation will appear after the first scan.
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- ORDER MANAGEMENT SECTION -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  
+  <div class="section-header" style="margin-top:32px">
+    <span class="section-title">📋 My Orders & Positions</span>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="showOrderTab('open-orders')">Open Orders</div>
+    <div class="tab" onclick="showOrderTab('order-history')">Order History</div>
+    <div class="tab" onclick="showOrderTab('positions')">Positions</div>
+  </div>
+
+  <!-- Open Orders Tab -->
+  <div class="tab-content active" id="open-orders-tab">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Order ID</th>
+            <th>Symbol</th>
+            <th>Side</th>
+            <th>Type</th>
+            <th>Qty</th>
+            <th>Price</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="open-orders-body">
+          <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">No open orders</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Order History Tab -->
+  <div class="tab-content" id="order-history-tab">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Order ID</th>
+            <th>Symbol</th>
+            <th>Side</th>
+            <th>Type</th>
+            <th>Qty</th>
+            <th>Price</th>
+            <th>Status</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+        <tbody id="order-history-body">
+          <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">No order history</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Positions Tab -->
+  <div class="tab-content" id="positions-tab">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Symbol</th>
+            <th>Type</th>
+            <th>Quantity</th>
+            <th>Avg Price</th>
+            <th>LTP</th>
+            <th>P&L</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="positions-body">
+          <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">No open positions</td></tr>
+        </tbody>
+      </table>
     </div>
   </div>
 
@@ -616,6 +749,11 @@
         <td style="color:${isBuy?'var(--green)':'var(--red)'}">₹${fmt(r.tg3)}</td>
         <td style="color:var(--red)">₹${fmt(r.stop_loss)}</td>
         <td style="color:var(--yellow)">₹${fmt(r.trailing_stop)}</td>
+        <td>
+          <button class="btn-sm" onclick="placeQuickOrder('${r.symbol}', '${r.symboltoken || ''}', '${isBuy ? 'BUY' : 'SELL'}', 'MARKET', ${r.ltp}, ${r.entry}, ${r.stop_loss}, ${r.tg1})" style="background:${isBuy?'rgba(63,185,80,0.1)':'rgba(248,81,73,0.1)'};color:${isBuy?'var(--green)':'var(--red)'};border-color:${isBuy?'var(--green)':'var(--red)'}">
+            ${isBuy ? '🟢 BUY' : '🔴 SELL'}
+          </button>
+        </td>
       </tr>`;
     }).join('');
 
@@ -709,6 +847,271 @@
     window.open(url, '_blank');
     toast('CSV download started', 'success');
   }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // ORDER MANAGEMENT FUNCTIONS
+  // ═══════════════════════════════════════════════════════════════════════
+
+  let tradingMode = 'PAPER';
+
+  // ── Show Order Tab ────────────────────────────────────────────────────
+  function showOrderTab(tabName) {
+    // Hide all tabs
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    
+    // Show selected tab
+    event.target.classList.add('active');
+    document.getElementById(`${tabName}-tab`).classList.add('active');
+    
+    // Refresh data for the selected tab
+    if (tabName === 'open-orders') {
+      fetchOpenOrders();
+    } else if (tabName === 'order-history') {
+      fetchOrderHistory();
+    } else if (tabName === 'positions') {
+      fetchPositions();
+    }
+  }
+
+  // ── Quick Order from Signal ───────────────────────────────────────────
+  async function placeQuickOrder(symbol, symboltoken, side, ordertype, ltp, entry, stopLoss, target) {
+    if (!confirm(`Place ${side} ${ordertype} order for ${symbol} at ₹${ltp}?`)) {
+      return;
+    }
+
+    const orderData = {
+      symbol: symbol,
+      symboltoken: symboltoken,
+      transactiontype: side,
+      ordertype: ordertype,
+      producttype: 'INTRADAY',
+      quantity: 1,
+      stop_loss: stopLoss,
+      target: target
+    };
+
+    try {
+      const res = await fetch(`${API}/orders/place`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderData)
+      });
+      const data = await res.json();
+
+      if (data.status) {
+        toast(`Order placed: ${data.data?.orderid || 'Success'}`, 'success');
+        fetchOpenOrders();
+        fetchPositions();
+      } else {
+        toast(`Order failed: ${data.message}`, 'error');
+      }
+    } catch (err) {
+      console.error('[placeQuickOrder]', err);
+      toast('Order placement failed', 'error');
+    }
+  }
+
+  // ── Fetch Open Orders ─────────────────────────────────────────────────
+  async function fetchOpenOrders() {
+    try {
+      const res = await fetch(`${API}/orders/open`);
+      const data = await res.json();
+
+      if (data.status) {
+        renderOpenOrders(data.data || []);
+      }
+    } catch (err) {
+      console.error('[fetchOpenOrders]', err);
+    }
+  }
+
+  // ── Render Open Orders ────────────────────────────────────────────────
+  function renderOpenOrders(orders) {
+    const tbody = document.getElementById('open-orders-body');
+    if (!tbody) return;
+
+    if (orders.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">No open orders</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = orders.map(o => `
+      <tr>
+        <td style="font-family:monospace;font-size:11px">${o.order_id}</td>
+        <td><strong>${o.symbol}</strong></td>
+        <td><span class="tag ${o.transactiontype === 'BUY' ? 'tag-buy' : 'tag-sell'}">${o.transactiontype}</span></td>
+        <td>${o.ordertype}</td>
+        <td>${o.quantity}</td>
+        <td>₹${o.price?.toFixed(2) || '—'}</td>
+        <td><span class="tag tag-bo">${o.status}</span></td>
+        <td>
+          <button class="btn-sm btn-danger" onclick="cancelOrder('${o.order_id}')">Cancel</button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  // ── Cancel Order ──────────────────────────────────────────────────────
+  async function cancelOrder(orderId) {
+    if (!confirm(`Cancel order ${orderId}?`)) return;
+
+    try {
+      const res = await fetch(`${API}/orders/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: orderId, variety: 'NORMAL' })
+      });
+      const data = await res.json();
+
+      if (data.status) {
+        toast('Order cancelled', 'success');
+        fetchOpenOrders();
+      } else {
+        toast('Cancel failed: ' + data.message, 'error');
+      }
+    } catch (err) {
+      console.error('[cancelOrder]', err);
+      toast('Cancel failed', 'error');
+    }
+  }
+
+  // ── Fetch Order History ───────────────────────────────────────────────
+  async function fetchOrderHistory() {
+    try {
+      const res = await fetch(`${API}/orders/history`);
+      const data = await res.json();
+
+      if (data.status) {
+        renderOrderHistory(data.data || []);
+      }
+    } catch (err) {
+      console.error('[fetchOrderHistory]', err);
+    }
+  }
+
+  // ── Render Order History ──────────────────────────────────────────────
+  function renderOrderHistory(orders) {
+    const tbody = document.getElementById('order-history-body');
+    if (!tbody) return;
+
+    if (orders.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">No order history</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = orders.slice(0, 20).map(o => `
+      <tr>
+        <td style="font-family:monospace;font-size:11px">${o.order_id}</td>
+        <td><strong>${o.symbol}</strong></td>
+        <td><span class="tag ${o.transactiontype === 'BUY' ? 'tag-buy' : 'tag-sell'}">${o.transactiontype}</span></td>
+        <td>${o.ordertype}</td>
+        <td>${o.quantity}</td>
+        <td>₹${o.price?.toFixed(2) || '—'}</td>
+        <td><span class="tag ${o.status === 'complete' ? 'tag-buy' : 'tag-sell'}">${o.status}</span></td>
+        <td style="font-size:11px;color:var(--muted)">${formatTime(o.updated_at)}</td>
+      </tr>
+    `).join('');
+  }
+
+  // ── Fetch Positions ───────────────────────────────────────────────────
+  async function fetchPositions() {
+    try {
+      const res = await fetch(`${API}/positions`);
+      const data = await res.json();
+
+      if (data.status) {
+        renderPositions(data.data || []);
+      }
+    } catch (err) {
+      console.error('[fetchPositions]', err);
+    }
+  }
+
+  // ── Render Positions ──────────────────────────────────────────────────
+  function renderPositions(positions) {
+    const tbody = document.getElementById('positions-body');
+    if (!tbody) return;
+
+    if (positions.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">No open positions</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = positions.map(p => {
+      const pnlColor = p.pnl >= 0 ? 'green' : 'red';
+      const pnlSign = p.pnl >= 0 ? '+' : '';
+      return `
+      <tr>
+        <td><strong>${p.symbol}</strong></td>
+        <td>${p.quantity > 0 ? 'LONG' : 'SHORT'}</td>
+        <td>${Math.abs(p.quantity)}</td>
+        <td>₹${p.buy_avg_price?.toFixed(2) || '—'}</td>
+        <td>₹${p.ltp?.toFixed(2) || '—'}</td>
+        <td style="color:var(--${pnlColor})"><strong>${pnlSign}₹${Math.abs(p.pnl || 0).toFixed(2)}</strong></td>
+        <td>
+          <button class="btn-sm btn-danger" onclick="exitPosition('${p.symbol}', '${p.symboltoken}', ${p.quantity}, '${p.producttype}')">Exit</button>
+        </td>
+      </tr>
+    `};
+    }).join('');
+  }
+
+  // ── Exit Position ─────────────────────────────────────────────────────
+  async function exitPosition(symbol, symboltoken, quantity, producttype) {
+    if (!confirm(`Exit position in ${symbol}?`)) return;
+
+    const orderData = {
+      symbol: symbol,
+      symboltoken: symboltoken,
+      transactiontype: quantity > 0 ? 'SELL' : 'BUY',
+      ordertype: 'MARKET',
+      producttype: producttype,
+      quantity: Math.abs(quantity)
+    };
+
+    try {
+      const res = await fetch(`${API}/orders/place`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderData)
+      });
+      const data = await res.json();
+
+      if (data.status) {
+        toast(`Position exited: ${symbol}`, 'success');
+        fetchPositions();
+        fetchOpenOrders();
+      } else {
+        toast(`Exit failed: ${data.message}`, 'error');
+      }
+    } catch (err) {
+      console.error('[exitPosition]', err);
+      toast('Exit failed', 'error');
+    }
+  }
+
+  // ── Format Time ───────────────────────────────────────────────────────
+  function formatTime(isoString) {
+    if (!isoString) return '—';
+    try {
+      const date = new Date(isoString);
+      return date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return '—';
+    }
+  }
+
+  // ── Auto-refresh orders/positions every 10 seconds ────────────────────
+  setInterval(() => {
+    const activeTab = document.querySelector('.tab-content.active');
+    if (activeTab && activeTab.id === 'open-orders-tab') {
+      fetchOpenOrders();
+    } else if (activeTab && activeTab.id === 'positions-tab') {
+      fetchPositions();
+    }
+  }, 10000);
+
 </script>
 </body>
 </html>
