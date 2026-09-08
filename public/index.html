@@ -702,26 +702,14 @@
       <form id="login-form" onsubmit="return false;">
         <div class="form-group">
           <label>Client ID</label>
-          <input type="text" id="login-client-id" placeholder="Your Angel One Client ID" required>
+          <input type="text" id="login-client-id" placeholder="Your Angel One Client ID" value="A291133" required>
         </div>
         <div class="form-group">
           <label>Password</label>
-          <input type="password" id="login-password" placeholder="Your Trading Password" required>
-        </div>
-        <div class="form-group">
-          <label>PIN (MPIN)</label>
-          <input type="password" id="login-pin" placeholder="Your 4-digit PIN" maxlength="4" required>
-        </div>
-        <div class="form-group">
-          <label>API Key</label>
-          <input type="text" id="login-api-key" placeholder="Your API Key" required>
-        </div>
-        <div class="form-group">
-          <label>TOTP Secret</label>
-          <input type="text" id="login-totp" placeholder="Your TOTP Secret" required>
+          <input type="password" id="login-password" placeholder="Your Trading Password" value="9595" required>
         </div>
         <div style="background:var(--surface2);padding:12px;border-radius:6px;font-size:12px;color:var(--muted);margin-top:12px">
-          ⚠️ Your credentials are sent only to the backend and never stored in the browser.
+          ℹ️ Using simplified login. API credentials are configured on the backend.
         </div>
       </form>
     </div>
@@ -822,12 +810,15 @@
   async function submitLogin() {
     const clientId = document.getElementById('login-client-id').value;
     const password = document.getElementById('login-password').value;
-    const pin = document.getElementById('login-pin').value;
-    const apiKey = document.getElementById('login-api-key').value;
-    const totp = document.getElementById('login-totp').value;
 
-    if (!clientId || !password || !pin || !apiKey || !totp) {
-      toast('Please fill all fields', 'error');
+    if (!clientId || !password) {
+      toast('Please fill Client ID and Password', 'error');
+      return;
+    }
+
+    // Verify credentials match config
+    if (clientId !== 'A291133' || password !== '9595') {
+      toast('Invalid Client ID or Password', 'error');
       return;
     }
 
@@ -836,17 +827,11 @@
     loginBtn.textContent = 'Logging in...';
     loginBtn.disabled = true;
 
+    // Use config credentials for actual login
     try {
-      const res = await fetch(`${API}/auth/login`, {
+      const res = await fetch(`${API}/auth/use-config-credentials`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          client_id: clientId,
-          password: password,
-          pin: pin,
-          api_key: apiKey,
-          totp_secret: totp
-        })
+        headers: { 'Content-Type': 'application/json' }
       });
       const data = await res.json();
 
@@ -860,7 +845,7 @@
         // Clear form
         document.getElementById('login-form').reset();
       } else {
-        toast('Login failed: ' + (data.message || 'Invalid credentials'), 'error');
+        toast('Login failed: ' + (data.message || 'Backend connection error'), 'error');
         loginBtn.textContent = 'Login';
         loginBtn.disabled = false;
       }
