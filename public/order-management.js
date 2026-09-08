@@ -8,7 +8,7 @@
  */
 
 const OrderManagement = (() => {
-  const API = window.location.origin;
+  const API = window.location.origin + '/api';
   let tradingMode = 'PAPER';
   let refreshInterval = null;
   

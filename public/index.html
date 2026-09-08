@@ -472,7 +472,8 @@
 <div id="toast"></div>
 
 <script>
-  const API = '';   // same origin — Vercel serves both UI and /scan
+  // Always use the same origin so it works on localhost, Vercel, or any custom domain.
+  const API = window.location.origin + '/api';
 
   let scanInterval = null;
   let countdownInterval = null;
@@ -519,9 +520,18 @@
 
     try {
       const res = await fetch(
-        `${API}/scan?interval=${interval}&top=${top}&capital=${capital}`
+        `${API}/scan?interval=${interval}&top=${top}&capital=${capital}`,
+        { cache: 'no-store' }
       );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        // Try to parse server-side error detail
+        let detail = `HTTP ${res.status}`;
+        try {
+          const errBody = await res.json();
+          detail = errBody.detail || errBody.error || detail;
+        } catch (_) {}
+        throw new Error(detail);
+      }
       const data = await res.json();
       lastData = data;
       scanCount++;
@@ -535,6 +545,7 @@
     } catch (err) {
       setStatus('error', 'Error');
       toast('Scan failed: ' + err.message, 'error');
+      console.error('[fetchScan]', err);
     }
   }
 
