@@ -597,14 +597,26 @@ _INDEX_HTML = """<!DOCTYPE html>
       <span id="trading-mode-text" style="color:var(--yellow);font-weight:600">PAPER MODE</span>
     </div>
     <!-- ── Balance Widget ── -->
-    <div id="balance-widget" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:5px 14px;font-size:12px;gap:14px;display:none;align-items:center;flex-wrap:wrap">
-      <span title="Available Credit Balance" style="color:var(--green)">
-        💰 Credit: <strong id="balance-credit">—</strong>
-      </span>
-      <span style="color:var(--border)">|</span>
-      <span title="Used / Utilized Balance" style="color:var(--red)">
-        📉 Used: <strong id="balance-used">—</strong>
-      </span>
+    <div id="balance-widget" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:6px 14px;font-size:12px;gap:0;flex-direction:column">
+      <div style="font-size:10px;color:var(--muted);margin-bottom:4px;letter-spacing:0.5px;text-transform:uppercase">💼 Account Balance</div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">
+        <span title="Available Cash to Trade">
+          <span style="color:var(--muted);font-size:10px">Available</span><br>
+          <strong id="balance-credit" style="color:var(--green);font-size:14px">—</strong>
+        </span>
+        <span title="Used Margin / Debits">
+          <span style="color:var(--muted);font-size:10px">Used</span><br>
+          <strong id="balance-used" style="color:var(--red);font-size:14px">—</strong>
+        </span>
+        <span title="Net Balance (Cash + Collateral)">
+          <span style="color:var(--muted);font-size:10px">Net</span><br>
+          <strong id="balance-net" style="color:var(--blue);font-size:14px">—</strong>
+        </span>
+        <span title="Today's Unrealised P&L">
+          <span style="color:var(--muted);font-size:10px">M2M P&amp;L</span><br>
+          <strong id="balance-m2m" style="font-size:14px">—</strong>
+        </span>
+      </div>
     </div>
     <div class="status-pill">
       <div class="dot" id="status-dot"></div>
@@ -966,11 +978,18 @@ async function fetchBalance() {
     const res = await fetch(window.location.origin + '/funds', { credentials: 'include' });
     const data = await res.json();
     if (data.status && data.data) {
-      const credit = data.data.availablecash || data.data.net || 0;
-      const used   = data.data.utiliseddebits || data.data.utilisedmargin || 0;
+      const d = data.data;
       const fmt = v => '₹' + Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      document.getElementById('balance-credit').textContent = fmt(credit);
-      document.getElementById('balance-used').textContent   = fmt(used);
+      const m2m = (d.m2munrealized || 0) + (d.m2mrealized || 0);
+
+      document.getElementById('balance-credit').textContent = fmt(d.availablecash || 0);
+      document.getElementById('balance-used').textContent   = fmt(d.utiliseddebits || 0);
+      document.getElementById('balance-net').textContent    = fmt(d.net || 0);
+
+      const m2mEl = document.getElementById('balance-m2m');
+      m2mEl.textContent = (m2m >= 0 ? '+' : '') + fmt(m2m);
+      m2mEl.style.color = m2m >= 0 ? 'var(--green)' : 'var(--red)';
+
       document.getElementById('balance-widget').style.display = 'flex';
     }
   } catch (err) {
@@ -2400,12 +2419,29 @@ def get_funds():
     """Get available funds and margin info."""
     try:
         order_service = _get_order_service()
-        funds = order_service.get_rms_limits()
-        
+        raw = order_service.get_rms_limits()
+
+        def safe_float(v):
+            try: return round(float(v), 2)
+            except: return 0.0
+
         return JSONResponse({
             "status": True,
-            "data": funds,
             "trading_mode": config.TRADING_MODE,
+            "data": {
+                # Available cash ready to trade
+                "availablecash":   safe_float(raw.get("availablecash",   raw.get("net", 0))),
+                # Total net balance (cash + collateral)
+                "net":             safe_float(raw.get("net",             raw.get("availablecash", 0))),
+                # Margin already used / debits
+                "utiliseddebits":  safe_float(raw.get("utiliseddebits",  0)),
+                # Collateral (pledged securities)
+                "collateral":      safe_float(raw.get("collateral",      0)),
+                # Unrealised M2M P&L for open positions
+                "m2munrealized":   safe_float(raw.get("m2munrealized",   raw.get("m2mUnrealized", 0))),
+                # Realised P&L today
+                "m2mrealized":     safe_float(raw.get("m2mrealized",     raw.get("m2mRealized",   0))),
+            },
         })
     except Exception as exc:
         logger.error(f"Get funds error: {exc}")
