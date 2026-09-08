@@ -257,24 +257,39 @@ async def login_page(request: Request, session_token: Optional[str] = Cookie(Non
     return HTMLResponse(content=html)
 
 
-@app.post("/login", response_class=HTMLResponse)
+@app.post("/login")
 async def login_submit(
-    request: Request,
-    client_id: str = Form(...),
-    password: str = Form(...)
+    client_id: str = Form(None),
+    password: str = Form(None)
 ):
-    """Handle login form submission (Python)"""
+    """Handle login form submission (Python) - with debugging"""
+    
+    # Debug logging
+    print(f"Login attempt - Client ID: {client_id}, Password: {'***' if password else 'None'}")
+    
+    # Check if form data received
+    if not client_id or not password:
+        html = """
+        <!DOCTYPE html>
+        <html><body style="background:#0d1117;color:#e6edf3;font-family:sans-serif;padding:20px;text-align:center">
+        <h1 style="color:#f85149">❌ Form Data Missing</h1>
+        <p>Client ID or Password not received from form.</p>
+        <a href="/login" style="color:#58a6ff;font-size:18px">← Back to Login</a>
+        </body></html>
+        """
+        return HTMLResponse(content=html)
     
     # Validate credentials
     if client_id.strip() != config.ANGEL_CLIENT_ID or password.strip() != config.ANGEL_PASSWORD:
-        # Show error
+        print(f"Login failed - Invalid credentials")
+        # Show error with inline HTML
         html = f"""
         <!DOCTYPE html>
         <html lang="en">
         <head>
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Login - Momentum Signal Tracker</title>
+          <title>Login Error</title>
           <style>
             * {{ margin: 0; padding: 0; box-sizing: border-box; }}
             body {{
@@ -372,25 +387,27 @@ async def login_submit(
             <form method="POST" action="/login">
               <div class="form-group">
                 <label>Client ID</label>
-                <input type="text" name="client_id" value="{client_id}" required autofocus>
+                <input type="text" name="client_id" value="A291133" required autofocus>
               </div>
               
               <div class="form-group">
                 <label>Password</label>
-                <input type="password" name="password" required>
+                <input type="password" name="password" value="9595" required>
               </div>
               
               <button type="submit" class="btn">🚀 Login Now</button>
             </form>
             
             <div class="info-box">
-              ℹ️ Session valid for 8 hours. All Python-based.
+              ℹ️ Correct: Client ID = A291133, Password = 9595
             </div>
           </div>
         </body>
         </html>
         """
         return HTMLResponse(content=html)
+    
+    print(f"Login successful - Creating session for {client_id}")
     
     # Create session
     session_token = create_session(client_id)
@@ -400,18 +417,22 @@ async def login_submit(
         global _api
         _api = None
         api = _get_api()
+        print("Angel One API initialized successfully")
     except Exception as e:
+        print(f"Angel One API error: {e}")
         html = f"""
         <!DOCTYPE html>
-        <html><body style="background:#0d1117;color:#e6edf3;font-family:sans-serif;padding:20px">
-        <h1>Angel One Login Failed</h1>
-        <p style="color:#f85149">{str(e)}</p>
-        <a href="/login" style="color:#58a6ff">Back to Login</a>
+        <html><body style="background:#0d1117;color:#e6edf3;font-family:sans-serif;padding:40px;text-align:center">
+        <h1 style="color:#f85149">⚠️ Angel One Login Failed</h1>
+        <p style="font-size:16px;margin:20px 0">{str(e)}</p>
+        <p style="color:#8b949e">Session created but Angel One API connection failed.</p>
+        <a href="/login" style="color:#58a6ff;font-size:18px;text-decoration:none">← Back to Login</a>
         </body></html>
         """
         return HTMLResponse(content=html)
     
     # Redirect to main page with session cookie
+    print("Redirecting to main page with session cookie")
     response = RedirectResponse(url="/", status_code=302)
     response.set_cookie(
         key="session_token",
