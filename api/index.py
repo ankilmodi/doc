@@ -11,7 +11,7 @@ from __future__ import annotations
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "momentum_tracker"))
 
-from fastapi import FastAPI, Query, Body, Request, Cookie, Response
+from fastapi import FastAPI, Query, Body, Request, Cookie, Response, Form
 from fastapi.responses import PlainTextResponse, JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -28,6 +28,9 @@ from angel_connector import AngelConnector
 from symbols import refresh_tokens_from_master
 from scanner import run_single_scan
 from order_service import OrderService, OrderRequest
+
+# Setup Jinja2 templates
+templates = Jinja2Templates(directory="templates")
 
 app = FastAPI(
     title="Momentum Signal Tracker",
@@ -111,21 +114,85 @@ def _get_order_service() -> OrderService:
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
-@app.get("/", response_class=PlainTextResponse)
-def root():
-    return (
-        "Momentum Signal Tracker – Live\n"
-        "================================\n\n"
-        "Endpoints:\n"
-        "  GET /scan          → JSON results\n"
-        "  GET /scan/table    → plain-text table\n"
-        "  GET /scan/csv      → CSV download\n"
-        "  GET /health        → API connectivity check\n\n"
-        "Query params:\n"
-        "  interval  ONE_MINUTE | FIVE_MINUTE | FIFTEEN_MINUTE  (default: FIVE_MINUTE)\n"
-        "  top       max stocks in output  (default: 10)\n"
-        "  capital   capital in USD        (default: 10000)\n"
+@app.get("/", response_class=HTMLResponse)
+async def root(request: Request, session_token: Optional[str] = Cookie(None)):
+    """Main page - check session and redirect accordingly"""
+    session_data = verify_session(session_token)
+    
+    if not session_data:
+        # Not logged in - redirect to login page
+        return RedirectResponse(url="/login", status_code=302)
+    
+    # Logged in - serve main app
+    try:
+        with open("public/index.html", "r", encoding="utf-8") as f:
+            html_content = f.read()
+        return HTMLResponse(content=html_content)
+    except FileNotFoundError:
+        return HTMLResponse("<h1>Error: index.html not found</h1>", status_code=500)
+
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request, session_token: Optional[str] = Cookie(None)):
+    """Show login page (Python template)"""
+    # If already logged in, redirect to main page
+    session_data = verify_session(session_token)
+    if session_data:
+        return RedirectResponse(url="/", status_code=302)
+    
+    return templates.TemplateResponse("login.html", {"request": request, "error": None})
+
+
+@app.post("/login", response_class=HTMLResponse)
+async def login_submit(
+    request: Request,
+    client_id: str = Form(...),
+    password: str = Form(...)
+):
+    """Handle login form submission (Python)"""
+    
+    # Validate credentials
+    if client_id.strip() != config.ANGEL_CLIENT_ID or password.strip() != config.ANGEL_PASSWORD:
+        return templates.TemplateResponse(
+            "login.html",
+            {"request": request, "error": "Invalid Client ID or Password"}
+        )
+    
+    # Create session
+    session_token = create_session(client_id)
+    
+    # Initialize Angel One connection
+    try:
+        global _api
+        _api = None
+        api = _get_api()
+    except Exception as e:
+        return templates.TemplateResponse(
+            "login.html",
+            {"request": request, "error": f"Angel One login failed: {str(e)}"}
+        )
+    
+    # Redirect to main page with session cookie
+    response = RedirectResponse(url="/", status_code=302)
+    response.set_cookie(
+        key="session_token",
+        value=session_token,
+        max_age=SESSION_MAX_AGE,
+        httponly=True,
+        samesite="lax"
     )
+    return response
+
+
+@app.get("/logout")
+async def logout(session_token: Optional[str] = Cookie(None)):
+    """Logout - destroy session and redirect to login"""
+    if session_token:
+        delete_session(session_token)
+    
+    response = RedirectResponse(url="/login", status_code=302)
+    response.delete_cookie("session_token")
+    return response
 
 
 @app.get("/health")
