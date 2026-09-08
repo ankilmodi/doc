@@ -725,17 +725,79 @@
       </form>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-primary" type="submit" id="login-submit-btn" onclick="quickLogin(); return false;">🚀 Login Now</button>
+      <button class="btn btn-primary" type="button" id="login-submit-btn">🚀 Login Now</button>
     </div>
   </div>
 </div>
 
 <script>
 // ═══════════════════════════════════════════════════════════════════════
-// PYTHON SESSION-BASED LOGIN (Simplified)
+// SUPER SIMPLE LOGIN - NO COMPLEX CODE
 // ═══════════════════════════════════════════════════════════════════════
 
 let isLoggedIn = false;
+
+// SIMPLE LOGIN FUNCTION
+function doLogin() {
+  console.log('LOGIN BUTTON CLICKED!');
+  
+  const btn = document.getElementById('login-submit-btn');
+  btn.textContent = '⏳ Please wait...';
+  btn.disabled = true;
+  
+  fetch('/auth/use-config-credentials', {
+    method: 'POST',
+    credentials: 'include'
+  })
+  .then(r => r.json())
+  .then(d => {
+    console.log('LOGIN RESPONSE:', d);
+    if (d.status) {
+      alert('✅ Login Success!');
+      isLoggedIn = true;
+      document.getElementById('login-modal').style.display = 'none';
+      document.querySelector('main').style.display = 'block';
+      document.querySelector('.controls').style.display = 'flex';
+      document.getElementById('btn-logout').style.display = 'inline-block';
+    } else {
+      alert('❌ Login Failed: ' + d.message);
+      btn.textContent = '🚀 Login Now';
+      btn.disabled = false;
+    }
+  })
+  .catch(e => {
+    console.error('LOGIN ERROR:', e);
+    alert('❌ Error: ' + e.message);
+    btn.textContent = '🚀 Login Now';
+    btn.disabled = false;
+  });
+}
+
+// ATTACH BUTTON CLICK - MULTIPLE WAYS TO ENSURE IT WORKS
+window.addEventListener('load', function() {
+  console.log('PAGE LOADED - ATTACHING LOGIN BUTTON');
+  
+  const btn = document.getElementById('login-submit-btn');
+  if (btn) {
+    // Method 1: onclick
+    btn.onclick = function() {
+      console.log('LOGIN BUTTON CLICKED VIA ONCLICK');
+      doLogin();
+      return false;
+    };
+    
+    // Method 2: addEventListener
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      console.log('LOGIN BUTTON CLICKED VIA ADDEVENTLISTENER');
+      doLogin();
+    });
+    
+    console.log('✅ LOGIN BUTTON READY');
+  } else {
+    console.error('❌ LOGIN BUTTON NOT FOUND!');
+  }
+});
 
 // Check Python session on page load
 async function checkPythonSession() {
@@ -803,61 +865,7 @@ checkPythonSession().then(sessionValid => {
 // Call immediately
 enforceLoginProtection();
 
-function quickLogin() {
-  console.log('Quick login called - using Python session');
-  
-  // Show loading
-  const btn = document.getElementById('login-submit-btn');
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = '⏳ Logging in...';
-  }
-  
-  fetch(window.location.origin + '/auth/use-config-credentials', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include' // Include cookies
-  })
-  .then(res => {
-    console.log('Response status:', res.status);
-    return res.json();
-  })
-  .then(data => {
-    console.log('Response data:', data);
-    if (data.status) {
-      isLoggedIn = true;
-      alert('✅ Login successful!');
-      enforceLoginProtection();
-      
-      // Check session info
-      checkPythonSession();
-    } else {
-      isLoggedIn = false;
-      alert('❌ Login failed: ' + (data.message || 'Unknown error'));
-      enforceLoginProtection();
-      
-      // Reset button
-      if (btn) {
-        btn.disabled = false;
-        btn.textContent = '🚀 Login Now';
-      }
-    }
-  })
-  .catch(err => {
-    console.error('Login error:', err);
-    isLoggedIn = false;
-    alert('❌ Login failed: ' + err.message);
-    enforceLoginProtection();
-    
-    // Reset button
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = '🚀 Login Now';
-    }
-  });
-  
-  return false; // Prevent form submission
-}
+// OLD FUNCTION REMOVED - NOW USING doLogin() ABOVE
 
 function handleLogout() {
   console.log('Logout called');
