@@ -726,9 +726,9 @@
       </form>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-outline" onclick="closeLoginModal()">Cancel</button>
-      <button class="btn btn-success" onclick="useMyCredentials()">Use My Credentials</button>
-      <button class="btn btn-primary" onclick="submitLogin()">Login</button>
+      <button class="btn btn-outline" type="button" onclick="closeLoginModal()">Cancel</button>
+      <button class="btn btn-success" type="button" onclick="useMyCredentials()">Use My Credentials</button>
+      <button class="btn btn-primary" type="button" id="login-submit-btn" onclick="submitLogin()">Login</button>
     </div>
   </div>
 </div>
@@ -832,7 +832,7 @@
     }
 
     // Show loading
-    const loginBtn = event.target;
+    const loginBtn = document.getElementById('login-submit-btn');
     loginBtn.textContent = 'Logging in...';
     loginBtn.disabled = true;
 
