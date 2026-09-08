@@ -14,6 +14,7 @@
   "routes": [
     { "src": "/health", "dest": "api/index.py" },
     { "src": "/debug", "dest": "api/index.py" },
+    { "src": "/auth/login", "dest": "api/index.py" },
     { "src": "/scan", "dest": "api/index.py" },
     { "src": "/scan/table", "dest": "api/index.py" },
     { "src": "/scan/csv", "dest": "api/index.py" },

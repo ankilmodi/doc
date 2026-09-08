@@ -374,6 +374,92 @@
     .btn-danger:hover {
       background: rgba(248,81,73,0.1);
     }
+
+    /* Modal Styles */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.7);
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-content {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      max-width: 600px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-header h2 {
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .modal-close {
+      font-size: 24px;
+      cursor: pointer;
+      color: var(--muted);
+      line-height: 1;
+    }
+
+    .modal-close:hover {
+      color: var(--text);
+    }
+
+    .modal-body {
+      padding: 20px;
+    }
+
+    .modal-footer {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 8px 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    .form-group input:focus {
+      outline: none;
+      border-color: var(--blue);
+    }
   </style>
 </head>
 <body>
@@ -392,6 +478,7 @@
       <div class="dot" id="status-dot"></div>
       <span id="status-text">Idle</span>
     </div>
+    <button class="btn btn-outline" id="btn-login" onclick="showLoginModal()">🔐 Login</button>
     <span id="last-updated">—</span>
   </div>
 </header>
@@ -604,6 +691,43 @@
 <!-- Toast -->
 <div id="toast"></div>
 
+<!-- Angel One Login Modal -->
+<div id="login-modal" class="modal" style="display:none">
+  <div class="modal-content" style="max-width:400px">
+    <div class="modal-header">
+      <h2>🔐 Angel One Login</h2>
+      <span class="modal-close" onclick="closeLoginModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <form id="login-form" onsubmit="return false;">
+        <div class="form-group">
+          <label>Client ID</label>
+          <input type="text" id="login-client-id" placeholder="Your Angel One Client ID" required>
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="login-password" placeholder="Your Trading Password" required>
+        </div>
+        <div class="form-group">
+          <label>API Key</label>
+          <input type="text" id="login-api-key" placeholder="Your API Key" required>
+        </div>
+        <div class="form-group">
+          <label>TOTP Secret</label>
+          <input type="text" id="login-totp" placeholder="Your TOTP Secret" required>
+        </div>
+        <div style="background:var(--surface2);padding:12px;border-radius:6px;font-size:12px;color:var(--muted);margin-top:12px">
+          ⚠️ Your credentials are sent only to the backend and never stored in the browser.
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeLoginModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitLogin()">Login</button>
+    </div>
+  </div>
+</div>
+
 <script>
   // Always use the same origin so it works on localhost, Vercel, or any custom domain.
   const API = window.location.origin;
@@ -614,6 +738,110 @@
   let refreshSecs = 100;
   let remaining = 100;
   let lastData = null;
+  let isLoggedIn = false;
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // LOGIN MANAGEMENT
+  // ═══════════════════════════════════════════════════════════════════════
+
+  // Check login on page load
+  window.addEventListener('DOMContentLoaded', () => {
+    checkLoginStatus();
+  });
+
+  async function checkLoginStatus() {
+    try {
+      const res = await fetch(`${API}/health`);
+      const data = await res.json();
+      
+      if (data.status === 'ok' && data.session === 'active') {
+        isLoggedIn = true;
+        hideLoginModal();
+        document.getElementById('btn-login').textContent = '✅ Logged In';
+        document.getElementById('btn-login').disabled = true;
+      } else {
+        showLoginModal();
+      }
+    } catch (err) {
+      showLoginModal();
+    }
+  }
+
+  function showLoginModal() {
+    document.getElementById('login-modal').style.display = 'flex';
+    // Hide main content
+    document.querySelector('main').style.display = 'none';
+    document.querySelector('.controls').style.display = 'none';
+  }
+
+  function closeLoginModal() {
+    if (!isLoggedIn) {
+      toast('Please login to continue', 'error');
+      return;
+    }
+    document.getElementById('login-modal').style.display = 'none';
+    document.querySelector('main').style.display = 'block';
+    document.querySelector('.controls').style.display = 'flex';
+  }
+
+  function hideLoginModal() {
+    document.getElementById('login-modal').style.display = 'none';
+    document.querySelector('main').style.display = 'block';
+    document.querySelector('.controls').style.display = 'flex';
+  }
+
+  async function submitLogin() {
+    const clientId = document.getElementById('login-client-id').value;
+    const password = document.getElementById('login-password').value;
+    const apiKey = document.getElementById('login-api-key').value;
+    const totp = document.getElementById('login-totp').value;
+
+    if (!clientId || !password || !apiKey || !totp) {
+      toast('Please fill all fields', 'error');
+      return;
+    }
+
+    // Show loading
+    const loginBtn = event.target;
+    loginBtn.textContent = 'Logging in...';
+    loginBtn.disabled = true;
+
+    try {
+      const res = await fetch(`${API}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id: clientId,
+          password: password,
+          api_key: apiKey,
+          totp_secret: totp
+        })
+      });
+      const data = await res.json();
+
+      if (data.status) {
+        isLoggedIn = true;
+        toast('Login successful!', 'success');
+        hideLoginModal();
+        document.getElementById('btn-login').textContent = '✅ Logged In';
+        document.getElementById('btn-login').disabled = true;
+        
+        // Clear form
+        document.getElementById('login-form').reset();
+      } else {
+        toast('Login failed: ' + (data.message || 'Invalid credentials'), 'error');
+        loginBtn.textContent = 'Login';
+        loginBtn.disabled = false;
+      }
+    } catch (err) {
+      console.error('[submitLogin]', err);
+      toast('Login failed: ' + err.message, 'error');
+      loginBtn.textContent = 'Login';
+      loginBtn.disabled = false;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
 
   // ── Toast ────────────────────────────────────────────────────────────────
   function toast(msg, type = 'success') {

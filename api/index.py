@@ -324,6 +324,53 @@ def scan_csv(
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# AUTHENTICATION ENDPOINT
+# ──────────────────────────────────────────────────────────────────────────────
+
+@app.post("/auth/login")
+def user_login(credentials: Dict[str, str] = Body(...)):
+    """
+    User login with their own Angel One credentials.
+    
+    Request body:
+    {
+        "client_id": "A123456",
+        "password": "password",
+        "api_key": "api_key",
+        "totp_secret": "TOTP_SECRET"
+    }
+    """
+    try:
+        # Temporarily update config with user credentials
+        config.ANGEL_CLIENT_ID = credentials.get("client_id")
+        config.ANGEL_PASSWORD = credentials.get("password")
+        config.ANGEL_API_KEY = credentials.get("api_key")
+        config.ANGEL_TOTP_SECRET = credentials.get("totp_secret")
+        
+        # Force re-login with new credentials
+        global _api
+        _api = None
+        
+        # Try to get API (will trigger login)
+        api = _get_api()
+        
+        return JSONResponse({
+            "status": True,
+            "message": "Login successful",
+            "data": {
+                "client_id": credentials.get("client_id"),
+            }
+        })
+        
+    except Exception as exc:
+        logger.error(f"Login error: {exc}")
+        return JSONResponse({
+            "status": False,
+            "message": f"Login failed: {str(exc)}",
+        }, status_code=401)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # ORDER MANAGEMENT ENDPOINTS
 # ──────────────────────────────────────────────────────────────────────────────
 
