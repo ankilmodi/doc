@@ -479,6 +479,7 @@
       <span id="status-text">Idle</span>
     </div>
     <button class="btn btn-outline" id="btn-login" onclick="showLoginModal()">🔐 Login</button>
+    <button class="btn btn-outline" id="btn-logout" onclick="handleLogout()" style="display:none">🚪 Logout</button>
     <span id="last-updated">—</span>
   </div>
 </header>
@@ -722,7 +723,24 @@
 </div>
 
 <script>
-// Define login functions IMMEDIATELY
+// ═══════════════════════════════════════════════════════════════════════
+// LOGIN PROTECTION - Define functions IMMEDIATELY
+// ═══════════════════════════════════════════════════════════════════════
+
+let isLoggedIn = false;
+
+// Ensure content stays hidden until login
+function enforceLoginProtection() {
+  if (!isLoggedIn) {
+    document.querySelector('main').style.display = 'none';
+    document.querySelector('.controls').style.display = 'none';
+    document.getElementById('login-modal').style.display = 'flex';
+  }
+}
+
+// Call immediately
+enforceLoginProtection();
+
 function quickLogin() {
   console.log('Quick login called');
   fetch(window.location.origin + '/auth/use-config-credentials', {
@@ -733,22 +751,73 @@ function quickLogin() {
   .then(data => {
     console.log('Response:', data);
     if (data.status) {
+      isLoggedIn = true;
       alert('Login successful!');
       document.getElementById('login-modal').style.display = 'none';
       document.querySelector('main').style.display = 'block';
       document.querySelector('.controls').style.display = 'flex';
+      
+      // Update buttons
+      const loginBtn = document.getElementById('btn-login');
+      const logoutBtn = document.getElementById('btn-logout');
+      if (loginBtn) loginBtn.style.display = 'none';
+      if (logoutBtn) logoutBtn.style.display = 'inline-block';
     } else {
+      isLoggedIn = false;
       alert('Login failed: ' + data.message);
+      enforceLoginProtection();
     }
   })
   .catch(err => {
     console.error('Error:', err);
+    isLoggedIn = false;
     alert('Login failed: ' + err.message);
+    enforceLoginProtection();
   });
+}
+
+function handleLogout() {
+  console.log('Logout called');
+  
+  if (confirm('Are you sure you want to logout?')) {
+    isLoggedIn = false;
+    
+    // Hide main content immediately
+    enforceLoginProtection();
+    
+    // Update buttons
+    const loginBtn = document.getElementById('btn-login');
+    const logoutBtn = document.getElementById('btn-logout');
+    if (loginBtn) loginBtn.style.display = 'inline-block';
+    if (logoutBtn) logoutBtn.style.display = 'none';
+    
+    // Stop any scanning
+    if (window.scanInterval) {
+      clearInterval(window.scanInterval);
+      window.scanInterval = null;
+    }
+    if (window.countdownInterval) {
+      clearInterval(window.countdownInterval);
+      window.countdownInterval = null;
+    }
+    
+    alert('Logged out successfully!');
+  }
+}
+
+function closeLoginModal() {
+  if (!isLoggedIn) {
+    alert('Please login to continue');
+    return;
+  }
+  document.getElementById('login-modal').style.display = 'none';
 }
 
 // Attach event listener when page loads
 document.addEventListener('DOMContentLoaded', function() {
+  // Enforce protection on load
+  enforceLoginProtection();
+  
   const btn = document.getElementById('login-submit-btn');
   if (btn) {
     btn.onclick = function() {
@@ -758,6 +827,9 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('Login button event attached');
   }
 });
+
+// Also enforce protection every 1 second as backup
+setInterval(enforceLoginProtection, 1000);
 </script>
 
 <script>
