@@ -1,0 +1,550 @@
+<!--
+  ORDER MANAGEMENT UI ADDITIONS
+  
+  Instructions: Add these sections to your index.html file
+  
+  1. Add the CSS styles to your <style> section
+  2. Add the Trading Mode toggle to your header
+  3. Add the Trading Dashboard stats section after your existing stats
+  4. Add the Order Management tabs section after your signals table
+  5. Add the Order Modal at the end of <body> before </body>
+  6. Add the script tag before </body>
+-->
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- 1. ADD TO <style> SECTION -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+
+<style>
+/* Order Management Styles */
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  cursor: pointer;
+  margin-right: 4px;
+}
+
+.btn-sm:hover {
+  background: var(--surface);
+  border-color: var(--blue);
+}
+
+.btn-danger {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.btn-danger:hover {
+  background: rgba(248,81,73,0.1);
+}
+
+.order-btn {
+  padding: 4px 10px;
+  font-size: 11px;
+  border-radius: 4px;
+  border: 1px solid var(--blue);
+  background: rgba(88,166,255,0.1);
+  color: var(--blue);
+  cursor: pointer;
+  margin-right: 4px;
+  transition: all 0.2s;
+}
+
+.order-btn:hover {
+  background: var(--blue);
+  color: #000;
+}
+
+.order-btn.live-mode {
+  border-color: var(--red);
+  background: rgba(248,81,73,0.1);
+  color: var(--red);
+}
+
+.order-btn.live-mode:hover {
+  background: var(--red);
+  color: #fff;
+}
+
+/* Modal Styles */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.7);
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-content {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  max-width: 600px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h2 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.modal-close {
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--muted);
+  line-height: 1;
+}
+
+.modal-close:hover {
+  color: var(--text);
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+.modal-footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: var(--blue);
+}
+
+.form-group input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.info-box {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 8px;
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.tab {
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.tab:hover {
+  color: var(--text);
+}
+
+.tab.active {
+  color: var(--blue);
+  border-bottom-color: var(--blue);
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+/* Toggle Switch */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 24px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--surface2);
+  border: 1px solid var(--border);
+  transition: .3s;
+  border-radius: 24px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 2px;
+  background-color: var(--muted);
+  transition: .3s;
+  border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+  background-color: rgba(248,81,73,0.2);
+  border-color: var(--red);
+}
+
+input:checked + .toggle-slider:before {
+  transform: translateX(22px);
+  background-color: var(--red);
+}
+</style>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- 2. ADD TO HEADER (inside .header-right div) -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+
+<div class="status-pill">
+  <span>Mode:</span>
+  <span class="tag tag-fno" id="trading-mode-badge">PAPER</span>
+  <label class="toggle-switch">
+    <input type="checkbox" id="trading-mode-toggle">
+    <span class="toggle-slider"></span>
+  </label>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- 3. ADD TRADING DASHBOARD STATS (after existing stats-row) -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+
+<div class="section-header" style="margin-top:24px">
+  <span class="section-title">💼 Trading Dashboard</span>
+</div>
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="label">Available Funds</div>
+    <div class="value blue" id="stat-funds">—</div>
+    <div class="sub">available cash</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Used Margin</div>
+    <div class="value yellow" id="stat-margin">—</div>
+    <div class="sub">margin utilized</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Open Positions</div>
+    <div class="value" style="color:var(--purple)" id="stat-positions">—</div>
+    <div class="sub">active positions</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Today's P&L</div>
+    <div class="value" id="stat-pnl">—</div>
+    <div class="sub">profit & loss</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- 4. ADD ORDER COLUMN TO SIGNALS TABLE -->
+<!-- Modify the existing signals table <thead> to add an "Actions" column -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+
+<!-- Add this <th> as the last column in your signals table <thead> -->
+<th>Actions</th>
+
+<!-- Add this JavaScript function to your existing <script> section -->
+<script>
+// Add order buttons to each signal row
+function addOrderButtons(signal) {
+  const isBuy = signal.signal === 'BUY';
+  return `
+    <button class="order-btn" onclick="OrderManagement.openOrderModal(${JSON.stringify(signal).replace(/"/g, '&quot;')}, 'MARKET')">
+      ${isBuy ? '🟢 BUY' : '🔴 SELL'} MKT
+    </button>
+    <button class="order-btn" onclick="OrderManagement.openOrderModal(${JSON.stringify(signal).replace(/"/g, '&quot;')}, 'LIMIT')">
+      ${isBuy ? 'BUY' : 'SELL'} LMT
+    </button>
+  `;
+}
+
+// Modify your existing renderData() function to include the order buttons
+// Add this as the last <td> in each row:
+// <td>${addOrderButtons(r)}</td>
+</script>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- 5. ADD ORDER MANAGEMENT SECTION (after signals table and before footer) -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+
+<div class="section-header" style="margin-top:32px">
+  <span class="section-title">📋 Orders & Positions</span>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('open-orders')">Open Orders</div>
+  <div class="tab" onclick="showTab('order-history')">Order History</div>
+  <div class="tab" onclick="showTab('positions')">Positions</div>
+</div>
+
+<!-- Open Orders Tab -->
+<div class="tab-content active" id="open-orders-tab">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Order ID</th>
+          <th>Symbol</th>
+          <th>Side</th>
+          <th>Type</th>
+          <th>Qty</th>
+          <th>Price</th>
+          <th>Trigger</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="open-orders-body">
+        <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Order History Tab -->
+<div class="tab-content" id="order-history-tab">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Order ID</th>
+          <th>Symbol</th>
+          <th>Side</th>
+          <th>Type</th>
+          <th>Qty</th>
+          <th>Price</th>
+          <th>Exec Price</th>
+          <th>Status</th>
+          <th>Time</th>
+        </tr>
+      </thead>
+      <tbody id="order-history-body">
+        <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Positions Tab -->
+<div class="tab-content" id="positions-tab">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Symbol</th>
+          <th>Type</th>
+          <th>Quantity</th>
+          <th>Avg Price</th>
+          <th>LTP</th>
+          <th>P&L</th>
+          <th>Product</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="positions-body">
+        <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function showTab(tabName) {
+  // Hide all tabs
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  
+  // Show selected tab
+  event.target.classList.add('active');
+  document.getElementById(`${tabName}-tab`).classList.add('active');
+}
+</script>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- 6. ADD ORDER MODAL (before </body>) -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+
+<!-- Order Modal -->
+<div id="order-modal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>📝 Place Order</h2>
+      <span class="modal-close" id="order-modal-close">&times;</span>
+    </div>
+    <div class="modal-body">
+      <form id="order-form" onsubmit="return false;">
+        
+        <div class="form-group">
+          <label>Symbol</label>
+          <input type="text" id="order-symbol" readonly style="background:var(--surface2);color:var(--muted)">
+          <input type="hidden" id="order-symboltoken">
+        </div>
+        
+        <div class="form-group">
+          <label>Current LTP</label>
+          <div id="order-ltp" style="font-size:20px;font-weight:700;color:var(--blue);margin-top:4px">₹0.00</div>
+        </div>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label>Transaction Type</label>
+            <select id="order-transaction">
+              <option value="BUY">BUY</option>
+              <option value="SELL">SELL</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label>Order Type</label>
+            <select id="order-type">
+              <option value="MARKET">MARKET</option>
+              <option value="LIMIT">LIMIT</option>
+              <option value="STOPLOSS_LIMIT">STOPLOSS LIMIT</option>
+              <option value="STOPLOSS_MARKET">STOPLOSS MARKET</option>
+            </select>
+          </div>
+        </div>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label>Product Type</label>
+            <select id="order-product">
+              <option value="INTRADAY">INTRADAY</option>
+              <option value="DELIVERY">DELIVERY</option>
+              <option value="MARGIN">MARGIN</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label>Quantity</label>
+            <input type="number" id="order-quantity" value="1" min="1">
+          </div>
+        </div>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label>Price (₹)</label>
+            <input type="number" id="order-price" step="0.01" placeholder="Market price">
+          </div>
+          
+          <div class="form-group">
+            <label>Trigger Price (₹)</label>
+            <input type="number" id="order-trigger" step="0.01" placeholder="For stop-loss" disabled>
+          </div>
+        </div>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label>Stop Loss (₹)</label>
+            <input type="number" id="order-sl" step="0.01" placeholder="Optional">
+          </div>
+          
+          <div class="form-group">
+            <label>Target (₹)</label>
+            <input type="number" id="order-target" step="0.01" placeholder="Optional">
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label>Risk Management</label>
+          <div class="form-row">
+            <div>
+              <label>Capital (₹)</label>
+              <input type="number" id="order-capital" value="100000" step="1000">
+            </div>
+            <div>
+              <label>Risk %</label>
+              <input type="number" id="order-risk-pct" value="1.0" step="0.1" min="0.1" max="5">
+            </div>
+          </div>
+          <div class="info-box" id="order-calc-info">
+            Set entry price and stop-loss to calculate recommended quantity
+          </div>
+        </div>
+        
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" id="order-cancel-btn">Cancel</button>
+      <button class="btn btn-primary" id="order-submit-btn">Place Order</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- 7. ADD SCRIPT TAG (before </body>) -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+
+<script src="order-management.js"></script>

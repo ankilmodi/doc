@@ -3,7 +3,8 @@
   "builds": [
     {
       "src": "api/index.py",
-      "use": "@vercel/python"
+      "use": "@vercel/python",
+      "config": { "maxLambdaSize": "15mb" }
     },
     {
       "src": "public/**",
@@ -11,7 +12,25 @@
     }
   ],
   "routes": [
-    { "src": "/scan(.*)", "dest": "api/index.py" },
-    { "src": "/(.*)",     "dest": "public/$1"    }
+    { "src": "/health",     "dest": "api/index.py" },
+    { "src": "/debug",      "dest": "api/index.py" },
+    { "src": "/scan",       "dest": "api/index.py" },
+    { "src": "/scan/table", "dest": "api/index.py" },
+    { "src": "/scan/csv",   "dest": "api/index.py" },
+    { "src": "/trading/mode", "dest": "api/index.py" },
+    { "src": "/trading/stats", "dest": "api/index.py" },
+    { "src": "/orders/place", "dest": "api/index.py" },
+    { "src": "/orders/modify", "dest": "api/index.py" },
+    { "src": "/orders/cancel", "dest": "api/index.py" },
+    { "src": "/orders/calculate-quantity", "dest": "api/index.py" },
+    { "src": "/orders/open", "dest": "api/index.py" },
+    { "src": "/orders/history", "dest": "api/index.py" },
+    { "src": "/orders", "dest": "api/index.py" },
+    { "src": "/positions", "dest": "api/index.py" },
+    { "src": "/trades", "dest": "api/index.py" },
+    { "src": "/funds", "dest": "api/index.py" },
+    { "src": "/index.html", "dest": "public/index.html" },
+    { "src": "/(.*)\\.(.+)","dest": "public/$1.$2"  },
+    { "src": "/(.*)",       "dest": "public/index.html" }
   ]
 }

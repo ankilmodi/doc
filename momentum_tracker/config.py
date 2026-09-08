@@ -53,3 +53,26 @@ TRAILING_STOP_PCT = 0.75             # trailing stop tightens to 0.75 % of LTP
 TG1_PCT           = 1.5
 TG2_PCT           = 3.0
 TG3_PCT           = 5.0
+
+# ── Order Management Settings ───────────────────────────────────────────────────
+TRADING_MODE          = "PAPER"      # PAPER (test) or LIVE (real orders)
+PAPER_TRADING_CAPITAL = 1_000_000.0  # ₹10 lakh for paper trading
+
+# Risk Management
+DEFAULT_RISK_PER_TRADE_PCT = 1.0     # 1% capital risk per trade
+MAX_POSITION_SIZE_PCT      = 20.0    # Max 20% capital in single position
+MAX_OPEN_POSITIONS         = 5       # Maximum concurrent positions
+
+# Order Defaults
+DEFAULT_PRODUCT_TYPE  = "INTRADAY"   # INTRADAY | DELIVERY | MARGIN
+DEFAULT_ORDER_TYPE    = "MARKET"     # MARKET | LIMIT | STOPLOSS_LIMIT
+DEFAULT_DURATION      = "DAY"        # DAY | IOC
+
+# Order Confirmations
+REQUIRE_CONFIRMATION_LIVE = True     # Require user confirmation for LIVE orders
+AUTO_STOPLOSS            = False     # Auto-place SL orders with entry orders
+
+# Position Monitoring
+AUTO_REFRESH_POSITIONS = True        # Auto-refresh positions every N seconds
+POSITION_REFRESH_SEC   = 10          # Refresh interval for positions
+ORDER_LOG_FILE         = "orders.log"  # Secure order logging (NO credentials logged)

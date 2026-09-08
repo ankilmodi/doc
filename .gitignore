@@ -1,1 +1,17 @@
 .vercel
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.log
+orders.log
+*.db
+*.sqlite3
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
