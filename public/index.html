@@ -724,10 +724,47 @@
 
 <script>
 // ═══════════════════════════════════════════════════════════════════════
-// LOGIN PROTECTION - Define functions IMMEDIATELY
+// LOGIN PROTECTION - Single Page Application (SPA) Session Management
 // ═══════════════════════════════════════════════════════════════════════
 
 let isLoggedIn = false;
+
+// Check if user was previously logged in (session persistence)
+function checkLoginSession() {
+  const sessionToken = localStorage.getItem('angel_session_token');
+  const sessionExpiry = localStorage.getItem('angel_session_expiry');
+  
+  if (sessionToken && sessionExpiry) {
+    const now = new Date().getTime();
+    if (now < parseInt(sessionExpiry)) {
+      // Session still valid
+      isLoggedIn = true;
+      return true;
+    } else {
+      // Session expired
+      clearLoginSession();
+      return false;
+    }
+  }
+  return false;
+}
+
+// Save login session (valid for 8 hours)
+function saveLoginSession() {
+  const now = new Date().getTime();
+  const expiry = now + (8 * 60 * 60 * 1000); // 8 hours
+  localStorage.setItem('angel_session_token', 'logged_in');
+  localStorage.setItem('angel_session_expiry', expiry.toString());
+  localStorage.setItem('angel_login_time', new Date().toISOString());
+}
+
+// Clear login session
+function clearLoginSession() {
+  localStorage.removeItem('angel_session_token');
+  localStorage.removeItem('angel_session_expiry');
+  localStorage.removeItem('angel_login_time');
+  isLoggedIn = false;
+}
 
 // Ensure content stays hidden until login
 function enforceLoginProtection() {
@@ -735,7 +772,29 @@ function enforceLoginProtection() {
     document.querySelector('main').style.display = 'none';
     document.querySelector('.controls').style.display = 'none';
     document.getElementById('login-modal').style.display = 'flex';
+    
+    // Update buttons
+    const loginBtn = document.getElementById('btn-login');
+    const logoutBtn = document.getElementById('btn-logout');
+    if (loginBtn) loginBtn.style.display = 'inline-block';
+    if (logoutBtn) logoutBtn.style.display = 'none';
+  } else {
+    // User is logged in - show content
+    document.querySelector('main').style.display = 'block';
+    document.querySelector('.controls').style.display = 'flex';
+    document.getElementById('login-modal').style.display = 'none';
+    
+    // Update buttons
+    const loginBtn = document.getElementById('btn-login');
+    const logoutBtn = document.getElementById('btn-logout');
+    if (loginBtn) loginBtn.style.display = 'none';
+    if (logoutBtn) logoutBtn.style.display = 'inline-block';
   }
+}
+
+// Check session on page load
+if (checkLoginSession()) {
+  console.log('Session restored - user already logged in');
 }
 
 // Call immediately
@@ -752,18 +811,12 @@ function quickLogin() {
     console.log('Response:', data);
     if (data.status) {
       isLoggedIn = true;
-      alert('Login successful!');
-      document.getElementById('login-modal').style.display = 'none';
-      document.querySelector('main').style.display = 'block';
-      document.querySelector('.controls').style.display = 'flex';
-      
-      // Update buttons
-      const loginBtn = document.getElementById('btn-login');
-      const logoutBtn = document.getElementById('btn-logout');
-      if (loginBtn) loginBtn.style.display = 'none';
-      if (logoutBtn) logoutBtn.style.display = 'inline-block';
+      saveLoginSession(); // Save session for SPA persistence
+      alert('Login successful! Session saved for 8 hours.');
+      enforceLoginProtection(); // Update UI
     } else {
       isLoggedIn = false;
+      clearLoginSession();
       alert('Login failed: ' + data.message);
       enforceLoginProtection();
     }
@@ -771,6 +824,7 @@ function quickLogin() {
   .catch(err => {
     console.error('Error:', err);
     isLoggedIn = false;
+    clearLoginSession();
     alert('Login failed: ' + err.message);
     enforceLoginProtection();
   });
@@ -781,15 +835,10 @@ function handleLogout() {
   
   if (confirm('Are you sure you want to logout?')) {
     isLoggedIn = false;
+    clearLoginSession(); // Clear SPA session
     
     // Hide main content immediately
     enforceLoginProtection();
-    
-    // Update buttons
-    const loginBtn = document.getElementById('btn-login');
-    const logoutBtn = document.getElementById('btn-logout');
-    if (loginBtn) loginBtn.style.display = 'inline-block';
-    if (logoutBtn) logoutBtn.style.display = 'none';
     
     // Stop any scanning
     if (window.scanInterval) {
@@ -801,7 +850,7 @@ function handleLogout() {
       window.countdownInterval = null;
     }
     
-    alert('Logged out successfully!');
+    alert('Logged out successfully! Session cleared.');
   }
 }
 
