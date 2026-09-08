@@ -708,7 +708,7 @@
       <span class="modal-close" onclick="closeLoginModal()">&times;</span>
     </div>
     <div class="modal-body">
-      <form id="login-form" onsubmit="quickLogin(); return false;">
+      <form id="login-form" onsubmit="doLogin(); return false;">
         <div class="form-group">
           <label>Client ID</label>
           <input type="text" id="login-client-id" placeholder="Your Angel One Client ID" value="A291133" required autofocus>
@@ -945,21 +945,10 @@ setInterval(enforceLoginProtection, 1000);
     document.querySelector('.controls').style.display = 'none';
   }
 
-  function closeLoginModal() {
-    if (!isLoggedIn) {
-      toast('Please login to continue', 'error');
-      return;
-    }
-    document.getElementById('login-modal').style.display = 'none';
-    document.querySelector('main').style.display = 'block';
-    document.querySelector('.controls').style.display = 'flex';
-  }
-
   function hideLoginModal() {
     document.getElementById('login-modal').style.display = 'none';
     document.querySelector('main').style.display = 'block';
     document.querySelector('.controls').style.display = 'flex';
-  }
   }
 
   async function submitLogin() {
@@ -1305,17 +1294,6 @@ setInterval(enforceLoginProtection, 1000);
     sessionTime.textContent = `${hours}h ${minutes}m remaining`;
   }
 
-  function stopScan() {
-    clearInterval(scanInterval);
-    clearInterval(countdownInterval);
-    scanInterval = null;
-    document.getElementById('btn-scan').disabled = false;
-    document.getElementById('btn-stop').disabled = true;
-    document.getElementById('countdown-fill').style.width = '100%';
-    setStatus('', 'Stopped');
-    toast('Scan stopped', 'error');
-  }
-
   // ── CSV download ─────────────────────────────────────────────────────────
   async function downloadCSV() {
     const interval = document.getElementById('interval').value;
@@ -1551,7 +1529,7 @@ Place this order?`;
           <button class="btn-sm btn-danger" onclick="exitPosition('${p.symbol}', '${p.symboltoken}', ${p.quantity}, '${p.producttype}')">Exit</button>
         </td>
       </tr>
-    `};
+    `;
     }).join('');
   }
 
