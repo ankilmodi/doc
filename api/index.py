@@ -120,7 +120,8 @@ def _get_order_service() -> OrderService:
 async def root(request: Request, session_token: Optional[str] = Cookie(None)):
     """Main page - serve index.html directly (no login redirect)"""
     try:
-        with open("public/index.html", "r", encoding="utf-8") as f:
+        index_path = os.path.join(os.path.dirname(__file__), "..", "public", "index.html")
+        with open(index_path, "r", encoding="utf-8") as f:
             html_content = f.read()
         return HTMLResponse(content=html_content)
     except FileNotFoundError:
