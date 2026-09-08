@@ -699,7 +699,7 @@
       <span class="modal-close" onclick="closeLoginModal()">&times;</span>
     </div>
     <div class="modal-body">
-      <form id="login-form" onsubmit="return false;">
+      <form id="login-form" onsubmit="submitLogin(); return false;">
         <div class="form-group">
           <label>Client ID</label>
           <input type="text" id="login-client-id" placeholder="Your Angel One Client ID" value="A291133" required>
@@ -740,6 +740,16 @@
   // Check login on page load
   window.addEventListener('DOMContentLoaded', () => {
     checkLoginStatus();
+    
+    // Add event listener to login button as backup
+    const loginBtn = document.getElementById('login-submit-btn');
+    if (loginBtn) {
+      loginBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        console.log('Login button clicked via event listener');
+        submitLogin();
+      });
+    }
   });
 
   async function checkLoginStatus() {
@@ -808,8 +818,13 @@
   }
 
   async function submitLogin() {
+    console.log('submitLogin called');
+    
     const clientId = document.getElementById('login-client-id').value;
     const password = document.getElementById('login-password').value;
+
+    console.log('Client ID:', clientId);
+    console.log('Password:', password ? '***' : 'empty');
 
     if (!clientId || !password) {
       toast('Please fill Client ID and Password', 'error');
@@ -824,36 +839,48 @@
 
     // Show loading
     const loginBtn = document.getElementById('login-submit-btn');
-    loginBtn.textContent = 'Logging in...';
-    loginBtn.disabled = true;
+    if (loginBtn) {
+      loginBtn.textContent = 'Logging in...';
+      loginBtn.disabled = true;
+    }
 
     // Use config credentials for actual login
     try {
+      console.log('Calling backend...');
       const res = await fetch(`${API}/auth/use-config-credentials`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
       const data = await res.json();
+      console.log('Backend response:', data);
 
       if (data.status) {
         isLoggedIn = true;
         toast('Login successful!', 'success');
         hideLoginModal();
-        document.getElementById('btn-login').textContent = '✅ Logged In';
-        document.getElementById('btn-login').disabled = true;
+        const headerBtn = document.getElementById('btn-login');
+        if (headerBtn) {
+          headerBtn.textContent = '✅ Logged In';
+          headerBtn.disabled = true;
+        }
         
         // Clear form
-        document.getElementById('login-form').reset();
+        const form = document.getElementById('login-form');
+        if (form) form.reset();
       } else {
         toast('Login failed: ' + (data.message || 'Backend connection error'), 'error');
+        if (loginBtn) {
+          loginBtn.textContent = 'Login';
+          loginBtn.disabled = false;
+        }
+      }
+    } catch (err) {
+      console.error('[submitLogin] Error:', err);
+      toast('Login failed: ' + err.message, 'error');
+      if (loginBtn) {
         loginBtn.textContent = 'Login';
         loginBtn.disabled = false;
       }
-    } catch (err) {
-      console.error('[submitLogin]', err);
-      toast('Login failed: ' + err.message, 'error');
-      loginBtn.textContent = 'Login';
-      loginBtn.disabled = false;
     }
   }
 
