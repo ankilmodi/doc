@@ -716,10 +716,49 @@
     <div class="modal-footer">
       <button class="btn btn-outline" type="button" onclick="closeLoginModal()">Cancel</button>
       <button class="btn btn-success" type="button" onclick="useMyCredentials()">Use My Credentials</button>
-      <button class="btn btn-primary" type="button" id="login-submit-btn" onclick="submitLogin()">Login</button>
+      <button class="btn btn-primary" type="button" id="login-submit-btn">Login</button>
     </div>
   </div>
 </div>
+
+<script>
+// Define login functions IMMEDIATELY
+function quickLogin() {
+  console.log('Quick login called');
+  fetch(window.location.origin + '/auth/use-config-credentials', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  })
+  .then(res => res.json())
+  .then(data => {
+    console.log('Response:', data);
+    if (data.status) {
+      alert('Login successful!');
+      document.getElementById('login-modal').style.display = 'none';
+      document.querySelector('main').style.display = 'block';
+      document.querySelector('.controls').style.display = 'flex';
+    } else {
+      alert('Login failed: ' + data.message);
+    }
+  })
+  .catch(err => {
+    console.error('Error:', err);
+    alert('Login failed: ' + err.message);
+  });
+}
+
+// Attach event listener when page loads
+document.addEventListener('DOMContentLoaded', function() {
+  const btn = document.getElementById('login-submit-btn');
+  if (btn) {
+    btn.onclick = function() {
+      console.log('Login button clicked!');
+      quickLogin();
+    };
+    console.log('Login button event attached');
+  }
+});
+</script>
 
 <script>
   // Always use the same origin so it works on localhost, Vercel, or any custom domain.
