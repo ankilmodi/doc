@@ -370,6 +370,35 @@ def user_login(credentials: Dict[str, str] = Body(...)):
         }, status_code=401)
 
 
+@app.post("/auth/use-config-credentials")
+def use_config_credentials():
+    """
+    Use credentials from config.py (your credentials).
+    """
+    try:
+        # Force re-login with config credentials
+        global _api
+        _api = None
+        
+        # Try to get API (will trigger login with config credentials)
+        api = _get_api()
+        
+        return JSONResponse({
+            "status": True,
+            "message": "Login successful with config credentials",
+            "data": {
+                "client_id": config.ANGEL_CLIENT_ID,
+            }
+        })
+        
+    except Exception as exc:
+        logger.error(f"Config login error: {exc}")
+        return JSONResponse({
+            "status": False,
+            "message": f"Login failed: {str(exc)}",
+        }, status_code=401)
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # ORDER MANAGEMENT ENDPOINTS
 # ──────────────────────────────────────────────────────────────────────────────

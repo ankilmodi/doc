@@ -709,6 +709,10 @@
           <input type="password" id="login-password" placeholder="Your Trading Password" required>
         </div>
         <div class="form-group">
+          <label>PIN (MPIN)</label>
+          <input type="password" id="login-pin" placeholder="Your 4-digit PIN" maxlength="4" required>
+        </div>
+        <div class="form-group">
           <label>API Key</label>
           <input type="text" id="login-api-key" placeholder="Your API Key" required>
         </div>
@@ -723,6 +727,7 @@
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeLoginModal()">Cancel</button>
+      <button class="btn btn-success" onclick="useMyCredentials()">Use My Credentials</button>
       <button class="btn btn-primary" onclick="submitLogin()">Login</button>
     </div>
   </div>
@@ -790,13 +795,38 @@
     document.querySelector('.controls').style.display = 'flex';
   }
 
+  async function useMyCredentials() {
+    // Use credentials from backend config
+    try {
+      const res = await fetch(`${API}/auth/use-config-credentials`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+
+      if (data.status) {
+        isLoggedIn = true;
+        toast('Logged in with config credentials!', 'success');
+        hideLoginModal();
+        document.getElementById('btn-login').textContent = '✅ Logged In';
+        document.getElementById('btn-login').disabled = true;
+      } else {
+        toast('Login failed: ' + (data.message || 'Check config.py'), 'error');
+      }
+    } catch (err) {
+      console.error('[useMyCredentials]', err);
+      toast('Login failed: ' + err.message, 'error');
+    }
+  }
+
   async function submitLogin() {
     const clientId = document.getElementById('login-client-id').value;
     const password = document.getElementById('login-password').value;
+    const pin = document.getElementById('login-pin').value;
     const apiKey = document.getElementById('login-api-key').value;
     const totp = document.getElementById('login-totp').value;
 
-    if (!clientId || !password || !apiKey || !totp) {
+    if (!clientId || !password || !pin || !apiKey || !totp) {
       toast('Please fill all fields', 'error');
       return;
     }
@@ -813,6 +843,7 @@
         body: JSON.stringify({
           client_id: clientId,
           password: password,
+          pin: pin,
           api_key: apiKey,
           totp_secret: totp
         })
