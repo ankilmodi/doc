@@ -594,7 +594,7 @@ _INDEX_HTML = """<!DOCTYPE html>
   <div class="header-right">
     <div class="status-pill" style="background:rgba(255,193,7,0.1);border-color:rgba(255,193,7,0.3);margin-right:12px" title="Trading Mode">
       <div class="dot" style="background:var(--yellow)"></div>
-      <span id="trading-mode-text" style="color:var(--yellow);font-weight:600">PAPER MODE</span>
+      <span id="trading-mode-text" style="color:var(--yellow);font-weight:600">LIVE MODE</span>
     </div>
     <!-- ── Balance Widget ── -->
     <div id="balance-widget" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:6px 14px;font-size:12px;gap:0;flex-direction:column">
@@ -612,8 +612,8 @@ _INDEX_HTML = """<!DOCTYPE html>
           <span style="color:var(--muted);font-size:10px">Net</span><br>
           <strong id="balance-net" style="color:var(--blue);font-size:14px">—</strong>
         </span>
-        <span title="Today's Unrealised P&L">
-          <span style="color:var(--muted);font-size:10px">M2M P&amp;L</span><br>
+        <span title="Today's Total P&L (Unrealised + Realised)">
+          <span style="color:var(--muted);font-size:10px">Today P&amp;L</span><br>
           <strong id="balance-m2m" style="font-size:14px">—</strong>
         </span>
       </div>
@@ -980,7 +980,7 @@ async function fetchBalance() {
     if (data.status && data.data) {
       const d = data.data;
       const fmt = v => '₹' + Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      const m2m = (d.m2munrealized || 0) + (d.m2mrealized || 0);
+      const m2m = d.today_pnl || (d.m2munrealized || 0) + (d.m2mrealized || 0);
 
       document.getElementById('balance-credit').textContent = fmt(d.availablecash || 0);
       document.getElementById('balance-used').textContent   = fmt(d.utiliseddebits || 0);
@@ -2416,31 +2416,49 @@ def get_trades():
 
 @app.get("/funds")
 def get_funds():
-    """Get available funds and margin info."""
+    """Get REAL funds from Angel One account (always live, ignores trading mode)."""
     try:
-        order_service = _get_order_service()
-        raw = order_service.get_rms_limits()
+        api = _get_api()
 
         def safe_float(v):
             try: return round(float(v), 2)
             except: return 0.0
 
+        # Always call the real Angel One RMS endpoint for actual balance
+        import requests as _req
+        resp = _req.get(
+            "https://apiconnect.angelbroking.com/rest/secure/angelbroking/user/v1/getRMS",
+            headers={
+                "Content-Type":     "application/json",
+                "Accept":           "application/json",
+                "X-UserType":       "USER",
+                "X-SourceID":       "WEB",
+                "X-ClientLocalIP":  api._server_ip,
+                "X-ClientPublicIP": api._server_ip,
+                "X-MACAddress":     "fe:80:00:00:00:00",
+                "X-PrivateKey":     config.ANGEL_API_KEY,
+                "Authorization":    f"Bearer {api._jwt_token}",
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+        result = resp.json()
+        raw = result.get("data", {}) if result.get("status") else {}
+
+        m2m_unrealized = safe_float(raw.get("m2munrealized", raw.get("m2mUnrealized", 0)))
+        m2m_realized   = safe_float(raw.get("m2mrealized",   raw.get("m2mRealized",   0)))
+
         return JSONResponse({
             "status": True,
             "trading_mode": config.TRADING_MODE,
             "data": {
-                # Available cash ready to trade
-                "availablecash":   safe_float(raw.get("availablecash",   raw.get("net", 0))),
-                # Total net balance (cash + collateral)
-                "net":             safe_float(raw.get("net",             raw.get("availablecash", 0))),
-                # Margin already used / debits
-                "utiliseddebits":  safe_float(raw.get("utiliseddebits",  0)),
-                # Collateral (pledged securities)
-                "collateral":      safe_float(raw.get("collateral",      0)),
-                # Unrealised M2M P&L for open positions
-                "m2munrealized":   safe_float(raw.get("m2munrealized",   raw.get("m2mUnrealized", 0))),
-                # Realised P&L today
-                "m2mrealized":     safe_float(raw.get("m2mrealized",     raw.get("m2mRealized",   0))),
+                "availablecash":  safe_float(raw.get("availablecash",  raw.get("net", 0))),
+                "net":            safe_float(raw.get("net",            raw.get("availablecash", 0))),
+                "utiliseddebits": safe_float(raw.get("utiliseddebits", 0)),
+                "collateral":     safe_float(raw.get("collateral",     0)),
+                "m2munrealized":  m2m_unrealized,
+                "m2mrealized":    m2m_realized,
+                "today_pnl":      round(m2m_unrealized + m2m_realized, 2),
             },
         })
     except Exception as exc:

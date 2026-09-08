@@ -476,7 +476,7 @@
   <div class="header-right">
     <div class="status-pill" style="background:rgba(255,193,7,0.1);border-color:rgba(255,193,7,0.3);margin-right:12px" title="Trading Mode">
       <div class="dot" style="background:var(--yellow)"></div>
-      <span id="trading-mode-text" style="color:var(--yellow);font-weight:600">PAPER MODE</span>
+      <span id="trading-mode-text" style="color:var(--yellow);font-weight:600">LIVE MODE</span>
     </div>
     <!-- ── Balance Widget ── -->
     <div id="balance-widget" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:6px 14px;font-size:12px;gap:0;flex-direction:column">
@@ -494,8 +494,8 @@
           <span style="color:var(--muted);font-size:10px">Net</span><br>
           <strong id="balance-net" style="color:var(--blue);font-size:14px">—</strong>
         </span>
-        <span title="Today's Unrealised P&L">
-          <span style="color:var(--muted);font-size:10px">M2M P&amp;L</span><br>
+        <span title="Today's Total P&L (Unrealised + Realised)">
+          <span style="color:var(--muted);font-size:10px">Today P&amp;L</span><br>
           <strong id="balance-m2m" style="font-size:14px">—</strong>
         </span>
       </div>
@@ -862,7 +862,7 @@ async function fetchBalance() {
     if (data.status && data.data) {
       const d = data.data;
       const fmt = v => '₹' + Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      const m2m = (d.m2munrealized || 0) + (d.m2mrealized || 0);
+      const m2m = d.today_pnl || (d.m2munrealized || 0) + (d.m2mrealized || 0);
 
       document.getElementById('balance-credit').textContent = fmt(d.availablecash || 0);
       document.getElementById('balance-used').textContent   = fmt(d.utiliseddebits || 0);

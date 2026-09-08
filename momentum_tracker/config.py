@@ -55,7 +55,7 @@ TG2_PCT           = 3.0
 TG3_PCT           = 5.0
 
 # ── Order Management Settings ───────────────────────────────────────────────────
-TRADING_MODE          = "PAPER"      # PAPER (test) or LIVE (real orders)
+TRADING_MODE          = "LIVE"       # PAPER (test) or LIVE (real orders)
 PAPER_TRADING_CAPITAL = 1_000_000.0  # ₹10 lakh for paper trading
 
 # Risk Management
