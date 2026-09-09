@@ -1349,7 +1349,7 @@ setInterval(enforceLoginProtection, 1000);
     }
 
     document.getElementById('alloc-total').textContent =
-      `Total: ${capital.toLocaleString()} USD · ₹${totalInr.toLocaleString('en-IN')}`;
+      `Total: $${capital.toLocaleString()} USD · ₹${totalInr.toLocaleString('en-IN')}`;
 
     grid.innerHTML = results.map(r => {
       const inr  = r.alloc_inr || 0;
@@ -1368,7 +1368,7 @@ setInterval(enforceLoginProtection, 1000);
           </div>
           <div style="text-align:right">
             <div class="alloc-inr">₹${Math.round(inr).toLocaleString('en-IN')}</div>
-            <div class="alloc-usd">${usd.toFixed(2)}</div>
+            <div class="alloc-usd">$${usd.toFixed(2)}</div>
           </div>
         </div>
         <div class="alloc-pct-bar">

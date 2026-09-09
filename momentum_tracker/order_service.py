@@ -301,24 +301,32 @@ class OrderService:
         
         # LIVE mode - call Angel One API
         try:
+            # Angel One requires price="0" for MARKET orders
+            price_str = "0"
+            if order_req.ordertype == "LIMIT" and order_req.price is not None:
+                price_str = f"{order_req.price:.2f}"
+
             payload = {
-                "variety": order_req.variety,
-                "tradingsymbol": order_req.symbol,
-                "symboltoken": order_req.symboltoken,
+                "variety":         order_req.variety,
+                "tradingsymbol":   order_req.symbol,
+                "symboltoken":     order_req.symboltoken,
                 "transactiontype": order_req.transactiontype,
-                "exchange": order_req.exchange,
-                "ordertype": order_req.ordertype,
-                "producttype": order_req.producttype,
-                "duration": order_req.duration,
-                "quantity": str(order_req.quantity),
+                "exchange":        order_req.exchange,
+                "ordertype":       order_req.ordertype,
+                "producttype":     order_req.producttype,
+                "duration":        order_req.duration,
+                "quantity":        str(order_req.quantity),
+                "price":           price_str,
+                "squareoff":       "0",
+                "stoploss":        "0",
+                "triggerprice":    "0",
             }
-            
-            if order_req.price is not None:
-                payload["price"] = f"{order_req.price:.2f}"
-            
+
             if order_req.triggerprice is not None:
                 payload["triggerprice"] = f"{order_req.triggerprice:.2f}"
-            
+
+            logger.info(f"[LIVE] Placing order payload: {payload}")
+
             resp = requests.post(
                 f"{self.base_url}/rest/secure/angelbroking/order/v1/placeOrder",
                 json=payload,
@@ -327,10 +335,22 @@ class OrderService:
             )
             resp.raise_for_status()
             data = resp.json()
-            
-            logger.info(f"[LIVE] Order placed: {order_req.transactiontype} {order_req.quantity} {order_req.symbol} | Response: {data}")
-            
-            return data
+
+            logger.info(f"[LIVE] Order response: {data}")
+
+            # Normalise Angel One response so frontend always gets {status, data, message}
+            if data.get("status") is True or data.get("status") == "true":
+                return {
+                    "status":  True,
+                    "message": "Order placed successfully",
+                    "data":    data.get("data", {}),
+                }
+            else:
+                return {
+                    "status":  False,
+                    "message": data.get("message", "Order rejected by Angel One"),
+                    "errorcode": data.get("errorcode", ""),
+                }
             
         except Exception as exc:
             logger.error(f"[LIVE] Order placement failed: {exc}")
