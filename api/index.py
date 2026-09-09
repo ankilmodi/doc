@@ -1868,7 +1868,14 @@ async function submitOrder() {
       toast(`✅ Order placed! ID: ${data.data?.orderid || data.orderid || 'OK'}`, 'success');
       setTimeout(() => { fetchOpenOrders(); fetchPositions(); fetchBalance(); }, 1000);
     } else {
-      toast(`❌ Order failed: ${data.message}`, 'error');
+      const msg = data.message || 'Unknown error';
+      const isIpError = msg.includes('not a registered IP') || msg.includes('IP');
+      if (isIpError) {
+        const ip = msg.match(/[\d.]+(?:\.\d+){3}/)?.[0] || 'unknown';
+        toast(`❌ IP not whitelisted: ${ip} — Add this IP on smartapi.angelone.in`, 'error');
+      } else {
+        toast(`❌ Order failed: ${msg}`, 'error');
+      }
     }
   } catch (err) {
     toast('❌ Order error: ' + err.message, 'error');
@@ -1905,11 +1912,20 @@ def health():
     """Quick connectivity and login check."""
     try:
         api = _get_api()
+        # Get current outbound IP
+        import requests as _req
+        try:
+            current_ip = _req.get("https://api.ipify.org?format=json", timeout=5).json().get("ip", "unknown")
+        except:
+            current_ip = api._server_ip
+        proxy_configured = any(os.environ.get(v) for v in ("QUOTAGUARDSTATIC_URL","FIXIE_URL","HTTPS_PROXY","HTTP_PROXY"))
         return JSONResponse({
-            "status":     "ok",
-            "server_ip":  api._server_ip,
-            "session":    "active" if api._jwt_token else "none",
-            "time_ist":   datetime.now().isoformat(),
+            "status":           "ok",
+            "outbound_ip":      current_ip,
+            "proxy_configured": proxy_configured,
+            "session":          "active" if api._jwt_token else "none",
+            "trading_mode":     config.TRADING_MODE,
+            "time_ist":         datetime.now().isoformat(),
         })
     except Exception as exc:
         return JSONResponse({"status": "error", "detail": str(exc)}, status_code=500)

@@ -1750,7 +1750,14 @@ async function submitOrder() {
       toast(`✅ Order placed! ID: ${data.data?.orderid || data.orderid || 'OK'}`, 'success');
       setTimeout(() => { fetchOpenOrders(); fetchPositions(); fetchBalance(); }, 1000);
     } else {
-      toast(`❌ Order failed: ${data.message}`, 'error');
+      const msg = data.message || 'Unknown error';
+      const isIpError = msg.includes('not a registered IP') || msg.includes('IP');
+      if (isIpError) {
+        const ip = msg.match(/[\d.]+(?:\.\d+){3}/)?.[0] || 'unknown';
+        toast(`❌ IP not whitelisted: ${ip} — Add this IP on smartapi.angelone.in`, 'error');
+      } else {
+        toast(`❌ Order failed: ${msg}`, 'error');
+      }
     }
   } catch (err) {
     toast('❌ Order error: ' + err.message, 'error');

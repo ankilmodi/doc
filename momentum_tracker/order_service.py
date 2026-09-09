@@ -22,14 +22,16 @@ logger = logging.getLogger(__name__)
 
 # ── Static-IP proxy support ───────────────────────────────────────────────────
 # Angel One requires orders from a registered static IP (enforced April 2026).
+# Vercel uses dynamic IPs - we route through a static proxy.
 # Set QUOTAGUARDSTATIC_URL or FIXIE_URL in Vercel environment variables.
-# Get a free static-IP proxy at: https://quotaguard.com or https://usefixie.com
 def _get_proxies() -> dict:
     for var in ("QUOTAGUARDSTATIC_URL", "FIXIE_URL", "HTTPS_PROXY", "HTTP_PROXY"):
         url = os.environ.get(var)
         if url:
             logger.info(f"[PROXY] Using {var}")
             return {"http": url, "https": url}
+    # If no proxy set, log warning
+    logger.warning("[PROXY] No static proxy configured - orders may fail IP check")
     return {}
 
 
