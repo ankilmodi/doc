@@ -15,9 +15,22 @@ from typing import Dict, List, Optional, Tuple
 from collections import defaultdict
 from dataclasses import dataclass, asdict
 
+import os
 import requests
 
 logger = logging.getLogger(__name__)
+
+# ── Static-IP proxy support ───────────────────────────────────────────────────
+# Angel One requires orders from a registered static IP (enforced April 2026).
+# Set QUOTAGUARDSTATIC_URL or FIXIE_URL in Vercel environment variables.
+# Get a free static-IP proxy at: https://quotaguard.com or https://usefixie.com
+def _get_proxies() -> dict:
+    for var in ("QUOTAGUARDSTATIC_URL", "FIXIE_URL", "HTTPS_PROXY", "HTTP_PROXY"):
+        url = os.environ.get(var)
+        if url:
+            logger.info(f"[PROXY] Using {var}")
+            return {"http": url, "https": url}
+    return {}
 
 
 @dataclass
@@ -331,6 +344,7 @@ class OrderService:
                 f"{self.base_url}/rest/secure/angelbroking/order/v1/placeOrder",
                 json=payload,
                 headers=self._headers(),
+                proxies=_get_proxies(),
                 timeout=15,
             )
             resp.raise_for_status()
@@ -381,6 +395,7 @@ class OrderService:
                 f"{self.base_url}/rest/secure/angelbroking/order/v1/modifyOrder",
                 json=payload,
                 headers=self._headers(),
+                proxies=_get_proxies(),
                 timeout=15,
             )
             resp.raise_for_status()
@@ -400,6 +415,7 @@ class OrderService:
                 f"{self.base_url}/rest/secure/angelbroking/order/v1/cancelOrder",
                 json=payload,
                 headers=self._headers(),
+                proxies=_get_proxies(),
                 timeout=15,
             )
             resp.raise_for_status()
@@ -417,6 +433,7 @@ class OrderService:
             resp = requests.get(
                 f"{self.base_url}/rest/secure/angelbroking/order/v1/getOrderBook",
                 headers=self._headers(),
+                proxies=_get_proxies(),
                 timeout=15,
             )
             resp.raise_for_status()
@@ -435,6 +452,7 @@ class OrderService:
             resp = requests.get(
                 f"{self.base_url}/rest/secure/angelbroking/order/v1/getPosition",
                 headers=self._headers(),
+                proxies=_get_proxies(),
                 timeout=15,
             )
             resp.raise_for_status()
@@ -453,6 +471,7 @@ class OrderService:
             resp = requests.get(
                 f"{self.base_url}/rest/secure/angelbroking/order/v1/getTradeBook",
                 headers=self._headers(),
+                proxies=_get_proxies(),
                 timeout=15,
             )
             resp.raise_for_status()
@@ -471,6 +490,7 @@ class OrderService:
             resp = requests.get(
                 f"{self.base_url}/rest/secure/angelbroking/user/v1/getRMS",
                 headers=self._headers(),
+                proxies=_get_proxies(),
                 timeout=15,
             )
             resp.raise_for_status()
