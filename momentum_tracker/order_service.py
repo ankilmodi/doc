@@ -273,8 +273,8 @@ class OrderService:
             "Accept": "application/json",
             "X-UserType": "USER",
             "X-SourceID": "WEB",
-            "X-ClientLocalIP": self.angel._server_ip,
-            "X-ClientPublicIP": self.angel._server_ip,
+            "X-ClientLocalIP": "0.0.0.0",
+            "X-ClientPublicIP": "0.0.0.0",
             "X-MACAddress": "fe:80:00:00:00:00",
             "X-PrivateKey": self.angel._headers()["X-PrivateKey"],
         }

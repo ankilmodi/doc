@@ -893,22 +893,22 @@ function doLogin() {
   .then(d => {
     console.log('LOGIN RESPONSE:', d);
     if (d.status) {
-      alert('✅ Login Success!');
       isLoggedIn = true;
+      toast('✅ Login successful!', 'success');
       document.getElementById('login-modal').style.display = 'none';
       document.querySelector('main').style.display = 'block';
       document.querySelector('.controls').style.display = 'flex';
       document.getElementById('btn-logout').style.display = 'inline-block';
       fetchBalance();
     } else {
-      alert('❌ Login Failed: ' + d.message);
+      toast('❌ Login Failed: ' + d.message, 'error');
       btn.textContent = '🚀 Login Now';
       btn.disabled = false;
     }
   })
   .catch(e => {
     console.error('LOGIN ERROR:', e);
-    alert('❌ Error: ' + e.message);
+    toast('❌ Error: ' + e.message, 'error');
     btn.textContent = '🚀 Login Now';
     btn.disabled = false;
   });
@@ -1035,45 +1035,34 @@ enforceLoginProtection();
 // OLD FUNCTION REMOVED - NOW USING doLogin() ABOVE
 
 function handleLogout() {
-  console.log('Logout called');
-  
-  if (confirm('Are you sure you want to logout?')) {
-    // Call Python logout endpoint
-    fetch(window.location.origin + '/auth/logout', {
-      method: 'POST',
-      credentials: 'include'
-    })
-    .then(res => res.json())
-    .then(data => {
-      isLoggedIn = false;
-      
-      // Hide main content immediately
-      enforceLoginProtection();
-      
-      // Stop any scanning
-      if (window.scanInterval) {
-        clearInterval(window.scanInterval);
-        window.scanInterval = null;
-      }
-      if (window.countdownInterval) {
-        clearInterval(window.countdownInterval);
-        window.countdownInterval = null;
-      }
-      
-      alert('✅ Logged out successfully! Python session destroyed.');
-    })
-    .catch(err => {
-      console.error('Logout error:', err);
-      // Force logout even if API fails
-      isLoggedIn = false;
-      enforceLoginProtection();
-    });
-  }
+  if (!confirm('Are you sure you want to logout?')) return;
+
+  fetch(window.location.origin + '/auth/logout', {
+    method: 'POST',
+    credentials: 'include'
+  })
+  .then(res => res.json())
+  .then(() => {
+    isLoggedIn = false;
+    enforceLoginProtection();
+    // Hide balance widget
+    const bw = document.getElementById('balance-widget');
+    if (bw) bw.style.display = 'none';
+    // Stop scanning
+    if (window.scanInterval)     { clearInterval(window.scanInterval);     window.scanInterval = null; }
+    if (window.countdownInterval){ clearInterval(window.countdownInterval); window.countdownInterval = null; }
+    toast('Logged out successfully', 'success');
+  })
+  .catch(() => {
+    isLoggedIn = false;
+    enforceLoginProtection();
+    toast('Logged out', 'success');
+  });
 }
 
 function closeLoginModal() {
   if (!isLoggedIn) {
-    alert('Please login to continue');
+    toast('Please login to continue', 'error');
     return;
   }
   document.getElementById('login-modal').style.display = 'none';
@@ -1323,7 +1312,7 @@ setInterval(enforceLoginProtection, 1000);
         <td style="color:var(--red)">₹${fmt(r.stop_loss)}</td>
         <td style="color:var(--yellow)">₹${fmt(r.trailing_stop)}</td>
         <td>
-          <button class="btn-sm" onclick="placeQuickOrder('${r.symbol}', '${r.symboltoken || ''}', '${isBuy ? 'BUY' : 'SELL'}', 'MARKET', ${r.ltp}, ${r.entry}, ${r.stop_loss}, ${r.tg1})" style="background:${isBuy?'rgba(63,185,80,0.1)':'rgba(248,81,73,0.1)'};color:${isBuy?'var(--green)':'var(--red)'};border-color:${isBuy?'var(--green)':'var(--red)'}">
+          <button class="btn-sm" onclick="openOrderModal('${r.symbol}', '${r.symboltoken || ''}', '${isBuy ? 'BUY' : 'SELL'}', ${r.ltp}, ${r.entry}, ${r.stop_loss}, ${r.tg1}, ${r.tg2})" style="background:${isBuy?'rgba(63,185,80,0.1)':'rgba(248,81,73,0.1)'};color:${isBuy?'var(--green)':'var(--red)'};border-color:${isBuy?'var(--green)':'var(--red)'}">
             ${isBuy ? '🟢 BUY' : '🔴 SELL'}
           </button>
         </td>
@@ -1760,6 +1749,136 @@ Place this order?`;
   setInterval(() => { if (isLoggedIn) fetchBalance(); }, 60000);
 
 </script>
+<!-- ── Order Modal ── -->
+<div id="order-modal" class="modal" style="display:none">
+  <div class="modal-content" style="max-width:420px">
+    <div class="modal-header">
+      <h2 id="order-modal-title">Place Order</h2>
+      <span class="modal-close" onclick="document.getElementById('order-modal').style.display='none'">&times;</span>
+    </div>
+    <div class="modal-body">
+      <div id="order-symbol-info" style="background:var(--surface2);padding:10px 14px;border-radius:8px;margin-bottom:16px;font-size:13px"></div>
+
+      <div class="form-group">
+        <label>Order Type</label>
+        <select id="order-type-select" onchange="toggleLimitPrice()" style="width:100%;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px">
+          <option value="MARKET">MARKET — Execute immediately at best price</option>
+          <option value="LIMIT">LIMIT — Set your own price</option>
+        </select>
+      </div>
+
+      <div class="form-group" id="limit-price-group" style="display:none">
+        <label>Limit Price (₹)</label>
+        <input type="number" id="order-limit-price" step="0.05" style="width:100%;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px" placeholder="Enter limit price">
+      </div>
+
+      <div class="form-group">
+        <label>Quantity</label>
+        <input type="number" id="order-quantity" value="1" min="1" style="width:100%;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px">
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12px;color:var(--muted);background:var(--surface2);padding:10px 14px;border-radius:8px">
+        <span>Entry: <strong id="order-entry" style="color:var(--text)">—</strong></span>
+        <span>Stop Loss: <strong id="order-sl" style="color:var(--red)">—</strong></span>
+        <span>Target 1: <strong id="order-tg1" style="color:var(--green)">—</strong></span>
+        <span>Target 2: <strong id="order-tg2" style="color:var(--green)">—</strong></span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="document.getElementById('order-modal').style.display='none'">Cancel</button>
+      <button class="btn btn-primary" id="order-submit-btn" onclick="submitOrder()">Place Order</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Order Modal State ─────────────────────────────────────────────────────
+let _orderState = {};
+
+function toggleLimitPrice() {
+  const t = document.getElementById('order-type-select').value;
+  document.getElementById('limit-price-group').style.display = t === 'LIMIT' ? 'block' : 'none';
+  if (t === 'LIMIT') {
+    document.getElementById('order-limit-price').value = _orderState.entry || '';
+    document.getElementById('order-limit-price').focus();
+  }
+}
+
+function openOrderModal(symbol, symboltoken, side, ltp, entry, stopLoss, tg1, tg2) {
+  _orderState = { symbol, symboltoken, side, ltp, entry, stopLoss, tg1, tg2 };
+  const isBuy = side === 'BUY';
+  document.getElementById('order-modal-title').textContent =
+    (isBuy ? '🟢 BUY ' : '🔴 SELL ') + symbol;
+  document.getElementById('order-modal-title').style.color =
+    isBuy ? 'var(--green)' : 'var(--red)';
+  document.getElementById('order-symbol-info').innerHTML =
+    `<strong>${symbol}</strong> &nbsp;|&nbsp; LTP: <strong>₹${ltp}</strong> &nbsp;|&nbsp;
+     Side: <span style="color:${isBuy?'var(--green)':'var(--red)'}"><strong>${side}</strong></span>`;
+  document.getElementById('order-entry').textContent = '₹' + entry;
+  document.getElementById('order-sl').textContent    = '₹' + stopLoss;
+  document.getElementById('order-tg1').textContent   = '₹' + tg1;
+  document.getElementById('order-tg2').textContent   = '₹' + (tg2 || '—');
+  document.getElementById('order-type-select').value = 'MARKET';
+  document.getElementById('limit-price-group').style.display = 'none';
+  document.getElementById('order-quantity').value = 1;
+  const btn = document.getElementById('order-submit-btn');
+  btn.style.background = isBuy ? 'var(--green)' : 'var(--red)';
+  btn.style.color = '#000';
+  btn.textContent = (isBuy ? '🟢 Place BUY' : '🔴 Place SELL') + ' Order';
+  document.getElementById('order-modal').style.display = 'flex';
+}
+
+async function submitOrder() {
+  const { symbol, symboltoken, side, entry, stopLoss, tg1 } = _orderState;
+  const orderType = document.getElementById('order-type-select').value;
+  const qty       = parseInt(document.getElementById('order-quantity').value) || 1;
+  const limitPrice = orderType === 'LIMIT'
+    ? parseFloat(document.getElementById('order-limit-price').value)
+    : null;
+
+  if (orderType === 'LIMIT' && (!limitPrice || limitPrice <= 0)) {
+    toast('Please enter a valid limit price', 'error'); return;
+  }
+
+  const btn = document.getElementById('order-submit-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Placing...';
+  toast('⏳ Placing order...', 'success');
+
+  const body = {
+    symbol, symboltoken,
+    transactiontype: side,
+    ordertype:       orderType,
+    producttype:     'INTRADAY',
+    quantity:        qty,
+    price:           limitPrice,
+    stop_loss:       stopLoss,
+    target:          tg1,
+  };
+
+  try {
+    const res  = await fetch(`${window.location.origin}/orders/place`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    document.getElementById('order-modal').style.display = 'none';
+    if (data.status) {
+      toast(`✅ Order placed! ID: ${data.data?.orderid || data.orderid || 'OK'}`, 'success');
+      setTimeout(() => { fetchOpenOrders(); fetchPositions(); fetchBalance(); }, 1000);
+    } else {
+      toast(`❌ Order failed: ${data.message}`, 'error');
+    }
+  } catch (err) {
+    toast('❌ Order error: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = side === 'BUY' ? '🟢 Place BUY Order' : '🔴 Place SELL Order';
+  }
+}
+</script>
+
 </body>
 </html>
 """
@@ -2433,8 +2552,8 @@ def get_funds():
                 "Accept":           "application/json",
                 "X-UserType":       "USER",
                 "X-SourceID":       "WEB",
-                "X-ClientLocalIP":  api._server_ip,
-                "X-ClientPublicIP": api._server_ip,
+                "X-ClientLocalIP":  "0.0.0.0",
+                "X-ClientPublicIP": "0.0.0.0",
                 "X-MACAddress":     "fe:80:00:00:00:00",
                 "X-PrivateKey":     config.ANGEL_API_KEY,
                 "Authorization":    f"Bearer {api._jwt_token}",

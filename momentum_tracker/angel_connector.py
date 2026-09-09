@@ -72,8 +72,8 @@ class AngelConnector:
             "Accept":             "application/json",
             "X-UserType":         "USER",
             "X-SourceID":         "WEB",
-            "X-ClientLocalIP":    self._server_ip,
-            "X-ClientPublicIP":   self._server_ip,
+            "X-ClientLocalIP":    "0.0.0.0",
+            "X-ClientPublicIP":   "0.0.0.0",
             "X-MACAddress":       "fe:80:00:00:00:00",
             "X-PrivateKey":       config.ANGEL_API_KEY,
         }
