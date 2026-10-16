@@ -125,7 +125,34 @@ class AngelConnector:
         return h
 
     def _login(self) -> None:
-        totp_code = pyotp.TOTP(config.ANGEL_TOTP_SECRET).now()
+        # Validate and clean TOTP secret
+        totp_secret = config.ANGEL_TOTP_SECRET.strip().upper().replace(" ", "").replace("-", "")
+        
+        # Log the secret length for debugging (without showing the actual secret)
+        logger.info("TOTP secret length: %d characters", len(totp_secret))
+        
+        # Check if TOTP secret is valid Base32 (A-Z, 2-7 only)
+        import re
+        if not totp_secret:
+            raise RuntimeError("❌ TOTP secret is empty. Set ANGEL_TOTP_SECRET environment variable.")
+        
+        if not re.match(r'^[A-Z2-7]+$', totp_secret):
+            invalid_chars = [c for c in totp_secret if c not in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567']
+            raise RuntimeError(
+                f"❌ Invalid TOTP secret format. Base32 secrets can only contain A-Z and 2-7. "
+                f"Invalid characters found: {', '.join(repr(c) for c in set(invalid_chars))}"
+            )
+        
+        try:
+            totp = pyotp.TOTP(totp_secret)
+            totp_code = totp.now()
+            logger.info("Generated TOTP code successfully")
+        except Exception as e:
+            raise RuntimeError(
+                f"❌ Failed to generate TOTP code. "
+                f"TOTP secret might be corrupted or in wrong format. Error: {str(e)}"
+            )
+        
         logger.info("Logging in to Angel One (TOTP: %s)…", totp_code)
 
         payload = {
