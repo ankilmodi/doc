@@ -1948,10 +1948,10 @@ def health():
         except Exception:
             current_ip = "unknown"
         
-        proxy_configured = bool(proxies)
+        proxy_configured = bool(proxies)  # True only if real proxy is active
         proxy_source = next(
             (v for v in ("QUOTAGUARDSTATIC_URL", "FIXIE_URL", "HTTPS_PROXY", "HTTP_PROXY")
-             if os.environ.get(v)), None
+             if os.environ.get(v, "").strip()), None
         )
         
         return JSONResponse({
@@ -1959,6 +1959,7 @@ def health():
             "outbound_ip":      current_ip,
             "proxy_configured": proxy_configured,
             "proxy_source":     proxy_source,
+            "proxy_note":       "env var set but skipped (placeholder value)" if (proxy_source and not proxy_configured) else None,
             "trading_mode":     config.TRADING_MODE,
             "time_ist":         datetime.now().isoformat(),
             "tip": (

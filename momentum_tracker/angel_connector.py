@@ -92,17 +92,21 @@ def _get_proxies() -> Optional[Dict[str, str]]:
         logger.info("Using proxy from %s: %s", env_var, proxy_url[:40] + "..." if len(proxy_url) > 40 else proxy_url)
         return {"http": proxy_url, "https": proxy_url}
     
-    logger.info("No proxy configured - using direct connection")
-    return None
+    logger.info("No proxy configured - using direct connection (explicit no-proxy)")
+    # Return empty dict (NOT None) so requests ignores HTTPS_PROXY/HTTP_PROXY env vars.
+    # requests treats proxies=None as "use environment defaults", which would pick up
+    # any broken HTTPS_PROXY env var still set in Vercel.
+    return {}
 
 
 def _get_server_ip() -> str:
     """Return the outbound IP of this server (used in Angel One headers)."""
     try:
-        proxies = _get_proxies()
-        r = requests.get("https://api.ipify.org?format=json", timeout=5, proxies=proxies)
+        proxies = _get_proxies()  # {} if no proxy, or real proxy dict
+        r = requests.get("https://api.ipify.org?format=json", timeout=8, proxies=proxies)
         return r.json().get("ip", "127.0.0.1")
-    except Exception:
+    except Exception as e:
+        logger.warning("Could not get server IP: %s", e)
         return "127.0.0.1"
 
 
