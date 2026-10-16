@@ -2276,38 +2276,34 @@ def user_login(
 
 
 @app.post("/auth/use-config-credentials")
-async def use_config_credentials():
+def use_config_credentials():
     """
     Quick login using credentials from config.py.
-    Creates Python session cookie.
+    Validates locally against config — does NOT call Angel One API at login time.
+    The Angel One API connection is established lazily on first scan/data request.
+    This avoids Vercel function timeout (Angel One login can take 5-10s).
     """
     try:
-        # Force re-login with config credentials
-        global _api
-        _api = None
-        
-        # Try to get API (will trigger login with config credentials)
-        api = _get_api()
-        
-        # Verify API is connected
-        if not api or not hasattr(api, 'client') or not api.client:
-            raise Exception("Failed to connect to Angel One API")
-        
-        # Create session
+        # Ensure config credentials are set (not empty/missing)
+        if not config.ANGEL_CLIENT_ID or not config.ANGEL_PASSWORD:
+            return JSONResponse({
+                "status": False,
+                "message": "❌ Credentials not configured. Set ANGEL_CLIENT_ID and ANGEL_PASSWORD in Vercel environment variables.",
+                "error_code": "CREDENTIALS_MISSING"
+            }, status_code=401)
+
+        # Create session with config client ID (local validation only — fast)
         session_token = create_session(config.ANGEL_CLIENT_ID)
-        
-        # Create response with session cookie
+
+        # Build response with secure session cookie
         response = JSONResponse({
             "status": True,
-            "message": "Login successful - credentials verified",
+            "message": "Login successful",
             "data": {
                 "client_id": config.ANGEL_CLIENT_ID,
                 "session_expires_in": SESSION_MAX_AGE
             }
         })
-        
-        # Set session cookie with proper configuration
-        # secure=True is required for Vercel (HTTPS) so the browser accepts the cookie
         response.set_cookie(
             key="session_token",
             value=session_token,
@@ -2316,33 +2312,14 @@ async def use_config_credentials():
             secure=True,
             samesite="lax"
         )
-        
         return response
-        
+
     except Exception as exc:
-        err_str = str(exc)
-        import re
-        
-        # Check for IP whitelist error
-        if "not a registered IP" in err_str or "IP not whitelisted" in err_str or "❌ IP" in err_str or "403" in err_str:
-            ip_match = re.search(r'\b\d{1,3}(?:\.\d{1,3}){3}\b', err_str)
-            blocked_ip = ip_match.group(0) if ip_match else "unknown"
-            return JSONResponse({
-                "status": False,
-                "message": (
-                    f"❌ IP not whitelisted: {blocked_ip}\n\n"
-                    f"To fix: Add this IP at smartapi.angelone.in → IP Whitelist\n"
-                    f"Or set HTTPS_PROXY env var in Vercel settings."
-                ),
-                "error_code": "IP_NOT_WHITELISTED"
-            }, status_code=403)
-        
-        # Generic login error
         return JSONResponse({
             "status": False,
-            "message": f"Login failed: {err_str}",
+            "message": f"Login failed: {str(exc)}",
             "error_code": "LOGIN_FAILED"
-        }, status_code=401)
+        }, status_code=500)
 
 
 @app.post("/auth/logout")
