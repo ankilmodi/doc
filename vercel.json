@@ -22,6 +22,7 @@
     { "src": "/trades",        "dest": "api/index.py" },
     { "src": "/funds",         "dest": "api/index.py" },
     { "src": "/debug(.*)",     "dest": "api/index.py" },
+    { "src": "/test-login.html", "dest": "public/test-login.html" },
     { "src": "/",              "dest": "api/index.py" }
   ],
   "env": {
