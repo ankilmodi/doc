@@ -2251,52 +2251,27 @@ def user_login(
         # Create session
         session_token = create_session(client_id)
         
-        # Set session cookie
-        response = JSONResponse({
+        # Build response with session cookie
+        resp = JSONResponse({
             "status": True,
             "message": "Login successful",
             "session_expires_in": SESSION_MAX_AGE
         })
-        response.set_cookie(
+        resp.set_cookie(
             key="session_token",
             value=session_token,
             max_age=SESSION_MAX_AGE,
             httponly=True,
+            secure=True,
             samesite="lax"
         )
-        
-        return response
+        return resp
         
     except Exception as e:
         return JSONResponse({
             "status": False,
             "message": str(e)
         }, status_code=500)
-        config.ANGEL_PASSWORD = credentials.get("password")
-        config.ANGEL_API_KEY = credentials.get("api_key")
-        config.ANGEL_TOTP_SECRET = credentials.get("totp_secret")
-        
-        # Force re-login with new credentials
-        global _api
-        _api = None
-        
-        # Try to get API (will trigger login)
-        api = _get_api()
-        
-        return JSONResponse({
-            "status": True,
-            "message": "Login successful",
-            "data": {
-                "client_id": credentials.get("client_id"),
-            }
-        })
-        
-    except Exception as exc:
-        logger.error(f"Login error: {exc}")
-        return JSONResponse({
-            "status": False,
-            "message": f"Login failed: {str(exc)}",
-        }, status_code=401)
 
 
 @app.post("/auth/use-config-credentials")
@@ -2331,12 +2306,13 @@ async def use_config_credentials():
         })
         
         # Set session cookie with proper configuration
+        # secure=True is required for Vercel (HTTPS) so the browser accepts the cookie
         response.set_cookie(
             key="session_token",
             value=session_token,
             max_age=SESSION_MAX_AGE,
             httponly=True,
-            secure=False,  # Set to True in production with HTTPS
+            secure=True,
             samesite="lax"
         )
         

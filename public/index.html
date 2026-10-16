@@ -986,13 +986,6 @@ function showLoginModal() {
   // LOGIN MANAGEMENT
   // ═══════════════════════════════════════════════════════════════════════
 
-  function showLoginModal() {
-    document.getElementById('login-modal').style.display = 'flex';
-    // Hide main content
-    document.querySelector('main').style.display = 'none';
-    document.querySelector('.controls').style.display = 'none';
-  }
-
   function hideLoginModal() {
     document.getElementById('login-modal').style.display = 'none';
     document.querySelector('main').style.display = 'block';
@@ -1013,11 +1006,7 @@ function showLoginModal() {
       return;
     }
 
-    // Verify credentials match config
-    if (clientId !== 'A291133' || password !== '9595') {
-      toast('Invalid Client ID or Password', 'error');
-      return;
-    }
+    // Credentials are validated on the backend against config
 
     // Show loading
     const loginBtn = document.getElementById('login-submit-btn');
@@ -1031,6 +1020,7 @@ function showLoginModal() {
       console.log('Calling backend...');
       const res = await fetch(`${API}/auth/use-config-credentials`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' }
       });
       const data = await res.json();
