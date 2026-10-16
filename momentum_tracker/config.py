@@ -1,13 +1,20 @@
 """
 config.py – Central configuration for the momentum signal tracker.
-All tunable parameters live here; no secrets are hard-coded in other modules.
-"""
+All tunable parameters live here.
 
-# ── Angel One API credentials ────────────────────────────────────────────────
-ANGEL_API_KEY    = "KvtCKM7Z"
-ANGEL_CLIENT_ID  = "A291133"
-ANGEL_PASSWORD   = "9595"
-ANGEL_TOTP_SECRET = "PX6O7SGZR2DG6GEQDB7XRNCZGY"
+Credentials are read from environment variables first (for Vercel/production),
+with hardcoded fallbacks for local development.
+
+Set these env vars in Vercel Dashboard → Project → Settings → Environment Variables:
+  ANGEL_API_KEY, ANGEL_CLIENT_ID, ANGEL_PASSWORD, ANGEL_TOTP_SECRET
+"""
+import os
+
+# ── Angel One API credentials (env vars take priority) ──────────────────────
+ANGEL_API_KEY     = os.getenv("ANGEL_API_KEY",     "KvtCKM7Z")
+ANGEL_CLIENT_ID   = os.getenv("ANGEL_CLIENT_ID",   "A291133")
+ANGEL_PASSWORD    = os.getenv("ANGEL_PASSWORD",     "9595")
+ANGEL_TOTP_SECRET = os.getenv("ANGEL_TOTP_SECRET",  "AHJQB2AEOHOYGGQFRRFXMKRGUITD53XG")
 
 # ── Scan timing ──────────────────────────────────────────────────────────────
 MARKET_OPEN_TIME  = "09:15"          # IST – exchange opens
@@ -55,7 +62,7 @@ TG2_PCT           = 3.0
 TG3_PCT           = 5.0
 
 # ── Order Management Settings ───────────────────────────────────────────────────
-TRADING_MODE          = "LIVE"       # PAPER (test) or LIVE (real orders)
+TRADING_MODE          = os.getenv("TRADING_MODE", "PAPER")  # PAPER (test) or LIVE (real orders)
 PAPER_TRADING_CAPITAL = 1_000_000.0  # ₹10 lakh for paper trading
 
 # Risk Management

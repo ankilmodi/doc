@@ -1933,32 +1933,37 @@ def my_ip():
 def health():
     """Quick connectivity and login check."""
     try:
-        api = _get_api()
-        # Get current outbound IP
+        # Don't auto-login on health check - just report status
         import requests as _req
-        proxies = api._proxies
+        
+        # Get proxy info
+        from angel_connector import _get_proxies
+        proxies = _get_proxies()
+        
+        # Get current IP
         try:
             current_ip = _req.get(
                 "https://api.ipify.org?format=json", timeout=5, proxies=proxies
             ).json().get("ip", "unknown")
         except Exception:
-            current_ip = api._server_ip
+            current_ip = "unknown"
+        
         proxy_configured = bool(proxies)
         proxy_source = next(
             (v for v in ("QUOTAGUARDSTATIC_URL", "FIXIE_URL", "HTTPS_PROXY", "HTTP_PROXY")
              if os.environ.get(v)), None
         )
+        
         return JSONResponse({
             "status":           "ok",
             "outbound_ip":      current_ip,
             "proxy_configured": proxy_configured,
             "proxy_source":     proxy_source,
-            "session":          "active" if api._jwt_token else "none",
             "trading_mode":     config.TRADING_MODE,
             "time_ist":         datetime.now().isoformat(),
             "tip": (
                 None if proxy_configured else
-                f"If IP {current_ip} is blocked by Angel One, set HTTPS_PROXY env var in Vercel."
+                f"If IP {current_ip} is blocked by Angel One, whitelist it at smartapi.angelone.in"
             ),
         })
     except Exception as exc:
