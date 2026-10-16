@@ -14,7 +14,14 @@ import os
 ANGEL_API_KEY     = os.getenv("ANGEL_API_KEY",     "KvtCKM7Z")
 ANGEL_CLIENT_ID   = os.getenv("ANGEL_CLIENT_ID",   "A291133")
 ANGEL_PASSWORD    = os.getenv("ANGEL_PASSWORD",     "9595")
-ANGEL_TOTP_SECRET = os.getenv("ANGEL_TOTP_SECRET",  "PX6O7SGZR2DG6GEQDB7XRNCZGY")
+
+# Force the correct TOTP - ignore any wrong env var
+totp_from_env = os.getenv("ANGEL_TOTP_SECRET", "")
+# If env var is wrong (starts with TOTPSE or is old), use the correct one
+if not totp_from_env or totp_from_env.startswith("TOTPSE") or totp_from_env == "AHJQB2AEOHOYGGQFRRFXMKRGUITD53XG":
+    ANGEL_TOTP_SECRET = "PX6O7SGZR2DG6GEQDB7XRNCZGY"
+else:
+    ANGEL_TOTP_SECRET = totp_from_env
 
 # ── Scan timing ──────────────────────────────────────────────────────────────
 MARKET_OPEN_TIME  = "09:15"          # IST – exchange opens
