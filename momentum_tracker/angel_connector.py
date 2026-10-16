@@ -143,6 +143,13 @@ class AngelConnector:
                 f"Invalid characters found: {', '.join(repr(c) for c in set(invalid_chars))}"
             )
         
+        # Fix Base32 padding - must be multiple of 8 characters
+        # Add padding '=' characters if needed
+        padding_needed = (8 - (len(totp_secret) % 8)) % 8
+        if padding_needed:
+            totp_secret = totp_secret + ('=' * padding_needed)
+            logger.info("Added %d padding characters to TOTP secret", padding_needed)
+        
         try:
             totp = pyotp.TOTP(totp_secret)
             totp_code = totp.now()
