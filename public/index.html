@@ -543,7 +543,7 @@
 </div>
 
 <!-- ── Main ── -->
-<main style="display:none">
+<main id="main-content" style="display:none">
 
   <!-- Stats row -->
   <div class="stats-row">
@@ -723,7 +723,7 @@
 <div id="toast"></div>
 
 <!-- Angel One Login Modal -->
-<div id="login-modal" class="modal" style="display:flex">
+<div id="login-modal" class="modal">
   <div class="modal-content" style="max-width:400px">
     <div class="modal-header">
       <h2>🔐 Angel One Login</h2>
@@ -733,11 +733,11 @@
       <form id="login-form" onsubmit="doLogin(); return false;">
         <div class="form-group">
           <label>Client ID</label>
-          <input type="text" id="login-client-id" placeholder="Your Angel One Client ID" value="A291133" required autofocus>
+          <input type="text" id="login-client-id" placeholder="Your Angel One Client ID" required autofocus>
         </div>
         <div class="form-group">
           <label>Password</label>
-          <input type="password" id="login-password" placeholder="Your Trading Password" value="9595" required>
+          <input type="password" id="login-password" placeholder="Your Trading Password" required>
         </div>
         <div style="background:var(--surface2);padding:12px;border-radius:6px;font-size:12px;color:var(--muted);margin-top:12px">
           ℹ️ Using simplified login. API credentials are configured on the backend.
@@ -764,34 +764,45 @@ function doLogin() {
   console.log('LOGIN BUTTON CLICKED!');
   
   const btn = document.getElementById('login-submit-btn');
-  btn.textContent = '⏳ Please wait...';
+  const originalText = btn.textContent;
+  btn.textContent = '⏳ Logging in...';
   btn.disabled = true;
   
   fetch('/auth/use-config-credentials', {
     method: 'POST',
-    credentials: 'include'
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json'
+    }
   })
-  .then(r => r.json())
+  .then(async r => {
+    const data = await r.json();
+    console.log('LOGIN RESPONSE:', data);
+    
+    if (!r.ok) {
+      throw new Error(data.message || `HTTP ${r.status}`);
+    }
+    
+    return data;
+  })
   .then(d => {
-    console.log('LOGIN RESPONSE:', d);
     if (d.status) {
       isLoggedIn = true;
       toast('✅ Login successful!', 'success');
       document.getElementById('login-modal').style.display = 'none';
-      document.querySelector('main').style.display = 'block';
+      document.getElementById('main-content').style.display = 'block';
       document.querySelector('.controls').style.display = 'flex';
+      document.getElementById('btn-login').style.display = 'none';
       document.getElementById('btn-logout').style.display = 'inline-block';
       fetchBalance();
     } else {
-      toast('❌ Login Failed: ' + d.message, 'error');
-      btn.textContent = '🚀 Login Now';
-      btn.disabled = false;
+      throw new Error(d.message || 'Login failed');
     }
   })
   .catch(e => {
     console.error('LOGIN ERROR:', e);
-    toast('❌ Error: ' + e.message, 'error');
-    btn.textContent = '🚀 Login Now';
+    toast('❌ Login Failed: ' + e.message, 'error');
+    btn.textContent = originalText;
     btn.disabled = false;
   });
 }
@@ -881,7 +892,7 @@ async function fetchBalance() {
 
 // Ensure content stays hidden until login
 function enforceLoginProtection() {
-  const mainEl = document.querySelector('main');
+  const mainEl = document.getElementById('main-content');
   const controlsEl = document.querySelector('.controls');
   const modalEl = document.getElementById('login-modal');
   const loginBtn = document.getElementById('btn-login');
@@ -902,19 +913,24 @@ function enforceLoginProtection() {
   }
 }
 
-// Check session on load
-checkPythonSession().then(sessionValid => {
+// Initialize on page load
+(async function init() {
+  console.log('Initializing app...');
+  
+  // Check if already logged in
+  const sessionValid = await checkPythonSession();
+  
   if (sessionValid) {
-    console.log('Python session valid - user logged in');
-    fetchBalance();
+    console.log('✅ Session valid - user logged in');
+    isLoggedIn = true;
+    await fetchBalance();
+  } else {
+    console.log('❌ No valid session - showing login modal');
+    isLoggedIn = false;
   }
+  
   enforceLoginProtection();
-});
-
-// Call immediately
-enforceLoginProtection();
-
-// OLD FUNCTION REMOVED - NOW USING doLogin() ABOVE
+})();
 
 function handleLogout() {
   if (!confirm('Are you sure you want to logout?')) return;
@@ -950,15 +966,9 @@ function closeLoginModal() {
   document.getElementById('login-modal').style.display = 'none';
 }
 
-// Attach event listener when page loads
-document.addEventListener('DOMContentLoaded', function() {
-  // Enforce protection on load
-  enforceLoginProtection();
-  console.log('Page loaded - login protection enforced');
-});
-
-// Also enforce protection every 1 second as backup
-setInterval(enforceLoginProtection, 1000);
+function showLoginModal() {
+  document.getElementById('login-modal').style.display = 'flex';
+}
 </script>
 
 <script>

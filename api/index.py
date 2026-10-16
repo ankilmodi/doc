@@ -2295,7 +2295,7 @@ def user_login(
 
 
 @app.post("/auth/use-config-credentials")
-def use_config_credentials(response: Response = None):
+async def use_config_credentials():
     """
     Quick login using credentials from config.py.
     Creates Python session cookie.
@@ -2308,22 +2308,30 @@ def use_config_credentials(response: Response = None):
         # Try to get API (will trigger login with config credentials)
         api = _get_api()
         
+        # Verify API is connected
+        if not api or not hasattr(api, 'client') or not api.client:
+            raise Exception("Failed to connect to Angel One API")
+        
         # Create session
         session_token = create_session(config.ANGEL_CLIENT_ID)
         
-        # Set session cookie
+        # Create response with session cookie
         response = JSONResponse({
             "status": True,
-            "message": "Login successful",
+            "message": "Login successful - credentials verified",
             "data": {
                 "client_id": config.ANGEL_CLIENT_ID,
+                "session_expires_in": SESSION_MAX_AGE
             }
         })
+        
+        # Set session cookie with proper configuration
         response.set_cookie(
             key="session_token",
             value=session_token,
             max_age=SESSION_MAX_AGE,
             httponly=True,
+            secure=False,  # Set to True in production with HTTPS
             samesite="lax"
         )
         
@@ -2332,19 +2340,26 @@ def use_config_credentials(response: Response = None):
     except Exception as exc:
         err_str = str(exc)
         import re
-        if "not a registered IP" in err_str or "IP not whitelisted" in err_str or "❌ IP" in err_str:
+        
+        # Check for IP whitelist error
+        if "not a registered IP" in err_str or "IP not whitelisted" in err_str or "❌ IP" in err_str or "403" in err_str:
             ip_match = re.search(r'\b\d{1,3}(?:\.\d{1,3}){3}\b', err_str)
             blocked_ip = ip_match.group(0) if ip_match else "unknown"
             return JSONResponse({
                 "status": False,
                 "message": (
-                    f"❌ IP not whitelisted: {blocked_ip} — "
-                    f"Add this IP at smartapi.angelone.in or set HTTPS_PROXY env var in Vercel."
+                    f"❌ IP not whitelisted: {blocked_ip}\n\n"
+                    f"To fix: Add this IP at smartapi.angelone.in → IP Whitelist\n"
+                    f"Or set HTTPS_PROXY env var in Vercel settings."
                 ),
+                "error_code": "IP_NOT_WHITELISTED"
             }, status_code=403)
+        
+        # Generic login error
         return JSONResponse({
             "status": False,
             "message": f"Login failed: {err_str}",
+            "error_code": "LOGIN_FAILED"
         }, status_code=401)
 
 
