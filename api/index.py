@@ -1911,24 +1911,20 @@ async def logout(session_token: Optional[str] = Cookie(None)):
 def my_ip():
     """Returns the real outbound IP of this Vercel server — no AngelOne login needed."""
     import requests as _req
-    proxies = _get_proxies() if '_get_proxies' in dir() else None
+    ip1 = "unknown"
+    ip2 = "unknown"
     try:
-        proxies = __import__('momentum_tracker.angel_connector', fromlist=['_get_proxies'])._get_proxies() if False else None
-    except Exception:
-        proxies = None
-    try:
-        ip1 = _req.get("https://api.ipify.org?format=json", timeout=8, proxies=proxies).json().get("ip", "unknown")
+        ip1 = _req.get("https://api.ipify.org?format=json", timeout=8).json().get("ip", "unknown")
     except Exception as e:
-        ip1 = f"error: {e}"
+        ip1 = f"error: {str(e)[:80]}"
     try:
-        ip2 = _req.get("https://api4.my-ip.io/ip.json", timeout=8, proxies=proxies).json().get("ip", "unknown")
+        ip2 = _req.get("https://checkip.amazonaws.com", timeout=8).text.strip()
     except Exception as e:
-        ip2 = f"error: {e}"
+        ip2 = f"error: {str(e)[:80]}"
     return JSONResponse({
-        "vercel_outbound_ip_1": ip1,
-        "vercel_outbound_ip_2": ip2,
-        "proxy_configured": bool(proxies),
-        "message": "Add these IPs to AngelOne SmartAPI Primary/Secondary Static IP",
+        "primary_ip":   ip1,
+        "secondary_ip": ip2,
+        "message": "Copy these IPs into AngelOne SmartAPI → Add App → Primary/Secondary Static IP",
         "angelone_dashboard": "https://smartapi.angelone.in/new/apps"
     })
 
