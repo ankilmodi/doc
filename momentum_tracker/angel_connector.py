@@ -138,9 +138,11 @@ class AngelConnector:
         self._refresh_token:  str = ""
         self._session_expiry: datetime = datetime.min
         self._proxies = _get_proxies()
-        self._server_ip: str = _get_server_ip()
+        # NOTE: _get_server_ip() removed — it costs up to 8s and the result
+        # is not used in headers (X-ClientPublicIP is hardcoded to 0.0.0.0).
+        # Vercel functions have a 10s timeout so we can't afford this call.
         proxy_status = "via proxy" if self._proxies else "direct (no proxy)"
-        logger.info("Server outbound IP: %s (%s)", self._server_ip, proxy_status)
+        logger.info("AngelConnector init: %s", proxy_status)
         self._login()
 
     # ── Authentication ────────────────────────────────────────────────────────
@@ -216,7 +218,7 @@ class AngelConnector:
                 f"{_BASE}/rest/auth/angelbroking/user/v1/loginByPassword",
                 json=payload,
                 headers=self._headers(),
-                timeout=15,
+                timeout=7,   # Vercel free tier kills functions at 10s; keep well under that
                 proxies=self._proxies,
             )
             resp.raise_for_status()
