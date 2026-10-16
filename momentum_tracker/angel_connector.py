@@ -126,41 +126,49 @@ class AngelConnector:
 
     def _login(self) -> None:
         # Validate and clean TOTP secret
-        totp_secret = config.ANGEL_TOTP_SECRET.strip().upper().replace(" ", "").replace("-", "")
+        totp_secret_raw = config.ANGEL_TOTP_SECRET
         
-        # Log the secret length for debugging (without showing the actual secret)
-        logger.info("TOTP secret length: %d characters", len(totp_secret))
+        if not totp_secret_raw or totp_secret_raw.strip() == "":
+            raise RuntimeError(
+                "❌ TOTP secret is missing! "
+                "Set ANGEL_TOTP_SECRET in Vercel environment variables."
+            )
+        
+        totp_secret = totp_secret_raw.strip().upper().replace(" ", "").replace("-", "")
+        
+        # Log for debugging (mask middle part for security)
+        masked = totp_secret[:4] + "****" + totp_secret[-4:] if len(totp_secret) > 8 else "****"
+        logger.info("TOTP secret: %s (length: %d)", masked, len(totp_secret))
         
         # Check if TOTP secret is valid Base32 (A-Z, 2-7 only)
         import re
-        if not totp_secret:
-            raise RuntimeError("❌ TOTP secret is empty. Set ANGEL_TOTP_SECRET environment variable.")
-        
         if not re.match(r'^[A-Z2-7]+$', totp_secret):
             invalid_chars = [c for c in totp_secret if c not in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567']
             raise RuntimeError(
                 f"❌ Invalid TOTP secret format. Base32 secrets can only contain A-Z and 2-7. "
-                f"Invalid characters found: {', '.join(repr(c) for c in set(invalid_chars))}"
+                f"Invalid characters found: {', '.join(repr(c) for c in set(invalid_chars))}. "
+                f"Check ANGEL_TOTP_SECRET in Vercel environment variables."
             )
         
         # Fix Base32 padding - must be multiple of 8 characters
-        # Add padding '=' characters if needed
         padding_needed = (8 - (len(totp_secret) % 8)) % 8
         if padding_needed:
             totp_secret = totp_secret + ('=' * padding_needed)
-            logger.info("Added %d padding characters to TOTP secret", padding_needed)
+            logger.info("Added %d padding characters", padding_needed)
         
         try:
             totp = pyotp.TOTP(totp_secret)
             totp_code = totp.now()
-            logger.info("Generated TOTP code successfully")
+            logger.info("✅ TOTP code generated successfully: %s", totp_code)
         except Exception as e:
             raise RuntimeError(
-                f"❌ Failed to generate TOTP code. "
-                f"TOTP secret might be corrupted or in wrong format. Error: {str(e)}"
+                f"❌ Failed to generate TOTP code from secret. "
+                f"The TOTP secret in Vercel might be incorrect. "
+                f"Current secret starts with: {totp_secret[:6]}... "
+                f"Error: {str(e)}"
             )
         
-        logger.info("Logging in to Angel One (TOTP: %s)…", totp_code)
+        logger.info("Logging in to Angel One with TOTP: %s", totp_code)
 
         payload = {
             "clientcode": config.ANGEL_CLIENT_ID,
@@ -195,12 +203,45 @@ class AngelConnector:
 
         if not data.get("status"):
             msg = data.get("message", "Unknown error")
-            if "not a registered IP" in msg or "IP" in msg.upper():
+            error_code = data.get("errorcode", "")
+            
+            # Check for IP whitelist issues
+            if "not a registered IP" in msg or "IP" in msg.upper() or "whitelist" in msg.lower():
                 raise RuntimeError(
-                    f"❌ IP not whitelisted: {self._server_ip} — "
-                    f"Add this IP on smartapi.angelone.in or set HTTPS_PROXY env var."
+                    f"❌ IP not whitelisted: {self._server_ip}\n"
+                    f"Add this IP at: https://smartapi.angelone.in → My Profile → IP Whitelist\n"
+                    f"Or set HTTPS_PROXY environment variable in Vercel."
                 )
-            raise RuntimeError(f"Angel One login failed: {msg}")
+            
+            # Check for invalid TOTP
+            if "totp" in msg.lower() or "OTP" in msg:
+                raise RuntimeError(
+                    f"❌ Invalid TOTP code! The TOTP secret might be wrong.\n"
+                    f"Generated TOTP: {totp_code}\n"
+                    f"TOTP secret starts with: {totp_secret[:6]}...\n"
+                    f"Angel One error: {msg}\n\n"
+                    f"Solution: Verify ANGEL_TOTP_SECRET in Vercel matches your Angel One TOTP secret."
+                )
+            
+            # Check for invalid credentials
+            if "password" in msg.lower() or "client" in msg.lower() or "credential" in msg.lower():
+                raise RuntimeError(
+                    f"❌ Invalid credentials!\n"
+                    f"Angel One error: {msg}\n"
+                    f"Error code: {error_code}\n\n"
+                    f"Check these in Vercel environment variables:\n"
+                    f"- ANGEL_CLIENT_ID (should be: A291133)\n"
+                    f"- ANGEL_PASSWORD (should be: 9595)\n"
+                    f"- ANGEL_API_KEY (should be: KvtCKM7Z)"
+                )
+            
+            # Generic error
+            raise RuntimeError(
+                f"❌ Angel One login failed!\n"
+                f"Error: {msg}\n"
+                f"Error code: {error_code}\n"
+                f"TOTP used: {totp_code}"
+            )
 
         d = data["data"]
         self._jwt_token     = d["jwtToken"]
