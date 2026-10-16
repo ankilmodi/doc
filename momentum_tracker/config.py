@@ -14,7 +14,7 @@ import os
 ANGEL_API_KEY     = os.getenv("ANGEL_API_KEY",     "KvtCKM7Z")
 ANGEL_CLIENT_ID   = os.getenv("ANGEL_CLIENT_ID",   "A291133")
 ANGEL_PASSWORD    = os.getenv("ANGEL_PASSWORD",     "9595")
-ANGEL_TOTP_SECRET = os.getenv("ANGEL_TOTP_SECRET",  "AHJQB2AEOHOYGGQFRRFXMKRGUITD53XG")
+ANGEL_TOTP_SECRET = os.getenv("ANGEL_TOTP_SECRET",  "PX6O7SGZR2DG6GEQDB7XRNCZGY")
 
 # ── Scan timing ──────────────────────────────────────────────────────────────
 MARKET_OPEN_TIME  = "09:15"          # IST – exchange opens
