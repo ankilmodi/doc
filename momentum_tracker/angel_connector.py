@@ -49,6 +49,13 @@ _CACHE_LOCK   = threading.Lock()
 _MAX_BARS     = 60
 
 
+# Placeholder/example strings that indicate an unset proxy env var
+_PROXY_PLACEHOLDER_HINTS = (
+    "user:pass", "user:password", "<user>", "<pass>",
+    "example.com", "your-proxy", "proxy:port", "<proxy>",
+    "Optional:", "proxy URL", "bypass IP",
+)
+
 def _get_proxies() -> Optional[Dict[str, str]]:
     """
     Return a requests-compatible proxy dict if any proxy env var is set.
@@ -60,6 +67,14 @@ def _get_proxies() -> Optional[Dict[str, str]]:
         
         # Skip if empty or just whitespace
         if not proxy_url:
+            continue
+
+        # Skip placeholder/example values (unfilled templates)
+        if any(hint in proxy_url for hint in _PROXY_PLACEHOLDER_HINTS):
+            logger.warning(
+                "Proxy env var %s looks like an unfilled placeholder, ignoring: %s",
+                env_var, proxy_url[:60]
+            )
             continue
             
         # Validate proxy URL format
