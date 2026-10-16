@@ -56,6 +56,18 @@ _PROXY_PLACEHOLDER_HINTS = (
     "Optional:", "proxy URL", "bypass IP",
 )
 
+# Purge any placeholder proxy env vars at import time so requests library
+# cannot pick them up via merge_environment_proxies() on any request.
+def _purge_placeholder_proxy_envs() -> None:
+    for _var in ("QUOTAGUARDSTATIC_URL", "FIXIE_URL", "HTTPS_PROXY", "HTTP_PROXY",
+                 "https_proxy", "http_proxy"):
+        _val = os.environ.get(_var, "").strip()
+        if _val and any(h in _val for h in _PROXY_PLACEHOLDER_HINTS):
+            os.environ.pop(_var, None)
+            logger.warning("Purged placeholder proxy env var at startup: %s", _var)
+
+_purge_placeholder_proxy_envs()
+
 def _get_proxies() -> Optional[Dict[str, str]]:
     """
     Return a requests-compatible proxy dict if any proxy env var is set.
@@ -72,9 +84,14 @@ def _get_proxies() -> Optional[Dict[str, str]]:
         # Skip placeholder/example values (unfilled templates)
         if any(hint in proxy_url for hint in _PROXY_PLACEHOLDER_HINTS):
             logger.warning(
-                "Proxy env var %s looks like an unfilled placeholder, ignoring: %s",
+                "Proxy env var %s looks like an unfilled placeholder, removing from env: %s",
                 env_var, proxy_url[:60]
             )
+            # Purge from process environment so requests.merge_environment_proxies()
+            # cannot pick it up — passing proxies={} is not enough, requests still
+            # merges OS env vars on top of it.
+            os.environ.pop(env_var, None)
+            os.environ.pop(env_var.lower(), None)
             continue
             
         # Validate proxy URL format
