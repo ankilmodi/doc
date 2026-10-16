@@ -12,11 +12,19 @@ FIX: Angel One historical API (getCandleData) returns 403 from non-Indian IPs
   3. For the 5-day volume average we use the Gainers/Losers or the FULL quote
      which includes 52-week high/low and today's volume — good enough proxy.
 
+IP WHITELIST WORKAROUND:
+  If Angel One blocks this server's IP, set one of these env vars in Vercel:
+    HTTPS_PROXY=http://user:pass@proxy-host:port   (any proxy service)
+    QUOTAGUARDSTATIC_URL=http://...                (QuotaGuard Static – Indian IP)
+    FIXIE_URL=http://...                           (Fixie proxy)
+  The connector will automatically route all API calls through the proxy.
+
 Angel One REST base: https://apiconnect.angelbroking.com
 """
 
 from __future__ import annotations
 
+import os
 import time
 import logging
 import threading
@@ -41,10 +49,43 @@ _CACHE_LOCK   = threading.Lock()
 _MAX_BARS     = 60
 
 
+def _get_proxies() -> Optional[Dict[str, str]]:
+    """
+    Return a requests-compatible proxy dict if any proxy env var is set.
+    Priority: QUOTAGUARDSTATIC_URL > FIXIE_URL > HTTPS_PROXY > HTTP_PROXY
+    Returns None if no proxy is configured (direct connection).
+    """
+    for env_var in ("QUOTAGUARDSTATIC_URL", "FIXIE_URL", "HTTPS_PROXY", "HTTP_PROXY"):
+        proxy_url = os.environ.get(env_var, "").strip()
+        
+        # Skip if empty or just whitespace
+        if not proxy_url:
+            continue
+            
+        # Validate proxy URL format
+        if not proxy_url.startswith(("http://", "https://")):
+            logger.warning("Proxy URL from %s is malformed (missing http:// or https://): %s", env_var, proxy_url[:40])
+            continue
+            
+        # Check if it has a host
+        if proxy_url.count("://") == 1:
+            parts = proxy_url.split("://")[1]
+            if not parts or parts.strip() == "":
+                logger.warning("Proxy URL from %s is malformed (missing host): %s", env_var, proxy_url)
+                continue
+        
+        logger.info("Using proxy from %s: %s", env_var, proxy_url[:40] + "..." if len(proxy_url) > 40 else proxy_url)
+        return {"http": proxy_url, "https": proxy_url}
+    
+    logger.info("No proxy configured - using direct connection")
+    return None
+
+
 def _get_server_ip() -> str:
     """Return the outbound IP of this server (used in Angel One headers)."""
     try:
-        r = requests.get("https://api.ipify.org?format=json", timeout=5)
+        proxies = _get_proxies()
+        r = requests.get("https://api.ipify.org?format=json", timeout=5, proxies=proxies)
         return r.json().get("ip", "127.0.0.1")
     except Exception:
         return "127.0.0.1"
@@ -60,8 +101,10 @@ class AngelConnector:
         self._feed_token:     str = ""
         self._refresh_token:  str = ""
         self._session_expiry: datetime = datetime.min
-        self._server_ip:      str = _get_server_ip()
-        logger.info("Server outbound IP: %s", self._server_ip)
+        self._proxies = _get_proxies()
+        self._server_ip: str = _get_server_ip()
+        proxy_status = "via proxy" if self._proxies else "direct (no proxy)"
+        logger.info("Server outbound IP: %s (%s)", self._server_ip, proxy_status)
         self._login()
 
     # ── Authentication ────────────────────────────────────────────────────────
@@ -90,17 +133,40 @@ class AngelConnector:
             "password":   config.ANGEL_PASSWORD,
             "totp":       totp_code,
         }
-        resp = requests.post(
-            f"{_BASE}/rest/auth/angelbroking/user/v1/loginByPassword",
-            json=payload,
-            headers=self._headers(),
-            timeout=15,
-        )
-        resp.raise_for_status()
-        data = resp.json()
+        try:
+            resp = requests.post(
+                f"{_BASE}/rest/auth/angelbroking/user/v1/loginByPassword",
+                json=payload,
+                headers=self._headers(),
+                timeout=15,
+                proxies=self._proxies,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except requests.exceptions.ProxyError as e:
+            raise RuntimeError(
+                f"❌ Proxy Error: Please check proxy URL. It is malformed and could be missing the host. "
+                f"Check HTTPS_PROXY, HTTP_PROXY, QUOTAGUARDSTATIC_URL, or FIXIE_URL environment variables. "
+                f"Error: {str(e)}"
+            )
+        except requests.exceptions.RequestException as e:
+            err_msg = str(e)
+            if "not a registered IP" in err_msg or "IP" in err_msg:
+                raise RuntimeError(
+                    f"❌ IP not whitelisted: {self._server_ip} — "
+                    f"Add this IP on smartapi.angelone.in or set HTTPS_PROXY env var. "
+                    f"Original error: {err_msg}"
+                )
+            raise RuntimeError(f"Login request failed: {err_msg}")
 
         if not data.get("status"):
-            raise RuntimeError(f"Angel One login failed: {data.get('message')}")
+            msg = data.get("message", "Unknown error")
+            if "not a registered IP" in msg or "IP" in msg.upper():
+                raise RuntimeError(
+                    f"❌ IP not whitelisted: {self._server_ip} — "
+                    f"Add this IP on smartapi.angelone.in or set HTTPS_PROXY env var."
+                )
+            raise RuntimeError(f"Angel One login failed: {msg}")
 
         d = data["data"]
         self._jwt_token     = d["jwtToken"]
@@ -136,6 +202,7 @@ class AngelConnector:
                     json=payload,
                     headers=self._headers(auth=True),
                     timeout=10,
+                    proxies=self._proxies,
                 )
                 resp.raise_for_status()
                 data = resp.json()
@@ -213,7 +280,7 @@ class AngelConnector:
         Angel One FULL quote gives tradeVolume (today's total).
         We return [tradeVolume] * days as a flat proxy so volume_ratio ≈ 1.0
         unless a real spike is happening, which will be visible as >1.
-        
+
         NOTE: This is a graceful degradation — without historical data access
         from this server IP, today's volume is the best available proxy.
         """
