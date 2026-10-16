@@ -12,14 +12,25 @@
     }
   ],
   "routes": [
-    { "src": "/health", "dest": "api/index.py" },
-    { "src": "/auth/(.*)", "dest": "api/index.py" },
-    { "src": "/scan(.*)", "dest": "api/index.py" },
-    { "src": "/trading/(.*)", "dest": "api/index.py" },
-    { "src": "/orders(.*)", "dest": "api/index.py" },
-    { "src": "/positions", "dest": "api/index.py" },
-    { "src": "/trades", "dest": "api/index.py" },
-    { "src": "/funds", "dest": "api/index.py" },
-    { "src": "/", "dest": "api/index.py" }
-  ]
+    { "src": "/myip",          "dest": "api/index.py" },
+    { "src": "/health",        "dest": "api/index.py" },
+    { "src": "/auth/(.*)",     "dest": "api/index.py" },
+    { "src": "/scan(.*)",      "dest": "api/index.py" },
+    { "src": "/trading/(.*)",  "dest": "api/index.py" },
+    { "src": "/orders(.*)",    "dest": "api/index.py" },
+    { "src": "/positions",     "dest": "api/index.py" },
+    { "src": "/trades",        "dest": "api/index.py" },
+    { "src": "/funds",         "dest": "api/index.py" },
+    { "src": "/debug(.*)",     "dest": "api/index.py" },
+    { "src": "/",              "dest": "api/index.py" }
+  ],
+  "env": {
+    "ANGEL_API_KEY":      "Angel One SmartAPI key from smartapi.angelone.in",
+    "ANGEL_CLIENT_ID":    "Angel One Client ID (login username)",
+    "ANGEL_PASSWORD":     "Angel One trading password",
+    "ANGEL_TOTP_SECRET":  "TOTP secret key from Angel One SmartAPI setup",
+    "TRADING_MODE":       "PAPER or LIVE (default: PAPER)",
+    "SESSION_SECRET_KEY": "Random secret for session cookies (auto-generated if not set)",
+    "HTTPS_PROXY":        "Optional: proxy URL to bypass IP whitelist e.g. http://user:pass@proxy:port"
+  }
 }

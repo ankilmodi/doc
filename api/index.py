@@ -851,11 +851,11 @@ _INDEX_HTML = """<!DOCTYPE html>
       <form id="login-form" onsubmit="doLogin(); return false;">
         <div class="form-group">
           <label>Client ID</label>
-          <input type="text" id="login-client-id" placeholder="Your Angel One Client ID" value="A291133" required autofocus>
+          <input type="text" id="login-client-id" placeholder="Your Angel One Client ID" required autofocus>
         </div>
         <div class="form-group">
           <label>Password</label>
-          <input type="password" id="login-password" placeholder="Your Trading Password" value="9595" required>
+          <input type="password" id="login-password" placeholder="Your Trading Password" required>
         </div>
         <div style="background:var(--surface2);padding:12px;border-radius:6px;font-size:12px;color:var(--muted);margin-top:12px">
           ℹ️ Using simplified login. API credentials are configured on the backend.
@@ -1907,6 +1907,32 @@ async def logout(session_token: Optional[str] = Cookie(None)):
     return response
 
 
+@app.get("/myip")
+def my_ip():
+    """Returns the real outbound IP of this Vercel server — no AngelOne login needed."""
+    import requests as _req
+    proxies = _get_proxies() if '_get_proxies' in dir() else None
+    try:
+        proxies = __import__('momentum_tracker.angel_connector', fromlist=['_get_proxies'])._get_proxies() if False else None
+    except Exception:
+        proxies = None
+    try:
+        ip1 = _req.get("https://api.ipify.org?format=json", timeout=8, proxies=proxies).json().get("ip", "unknown")
+    except Exception as e:
+        ip1 = f"error: {e}"
+    try:
+        ip2 = _req.get("https://api4.my-ip.io/ip.json", timeout=8, proxies=proxies).json().get("ip", "unknown")
+    except Exception as e:
+        ip2 = f"error: {e}"
+    return JSONResponse({
+        "vercel_outbound_ip_1": ip1,
+        "vercel_outbound_ip_2": ip2,
+        "proxy_configured": bool(proxies),
+        "message": "Add these IPs to AngelOne SmartAPI Primary/Secondary Static IP",
+        "angelone_dashboard": "https://smartapi.angelone.in/new/apps"
+    })
+
+
 @app.get("/health")
 def health():
     """Quick connectivity and login check."""
@@ -1914,21 +1940,45 @@ def health():
         api = _get_api()
         # Get current outbound IP
         import requests as _req
+        proxies = api._proxies
         try:
-            current_ip = _req.get("https://api.ipify.org?format=json", timeout=5).json().get("ip", "unknown")
-        except:
+            current_ip = _req.get(
+                "https://api.ipify.org?format=json", timeout=5, proxies=proxies
+            ).json().get("ip", "unknown")
+        except Exception:
             current_ip = api._server_ip
-        proxy_configured = any(os.environ.get(v) for v in ("QUOTAGUARDSTATIC_URL","FIXIE_URL","HTTPS_PROXY","HTTP_PROXY"))
+        proxy_configured = bool(proxies)
+        proxy_source = next(
+            (v for v in ("QUOTAGUARDSTATIC_URL", "FIXIE_URL", "HTTPS_PROXY", "HTTP_PROXY")
+             if os.environ.get(v)), None
+        )
         return JSONResponse({
             "status":           "ok",
             "outbound_ip":      current_ip,
             "proxy_configured": proxy_configured,
+            "proxy_source":     proxy_source,
             "session":          "active" if api._jwt_token else "none",
             "trading_mode":     config.TRADING_MODE,
             "time_ist":         datetime.now().isoformat(),
+            "tip": (
+                None if proxy_configured else
+                f"If IP {current_ip} is blocked by Angel One, set HTTPS_PROXY env var in Vercel."
+            ),
         })
     except Exception as exc:
-        return JSONResponse({"status": "error", "detail": str(exc)}, status_code=500)
+        err_str = str(exc)
+        import re
+        ip_match = re.search(r'\b\d{1,3}(?:\.\d{1,3}){3}\b', err_str)
+        blocked_ip = ip_match.group(0) if ip_match else "unknown"
+        return JSONResponse({
+            "status":  "error",
+            "detail":  err_str,
+            "blocked_ip": blocked_ip if ("IP" in err_str or "ip" in err_str.lower()) else None,
+            "fix": (
+                f"Add {blocked_ip} at smartapi.angelone.in or set HTTPS_PROXY in Vercel env vars."
+                if ("IP" in err_str or "ip" in err_str.lower()) else None
+            ),
+        }, status_code=500)
 
 
 @app.get("/debug")
@@ -2046,7 +2096,24 @@ def scan_json(
     try:
         ranked = run_single_scan(universe, api)
     except Exception as exc:
-        return JSONResponse({"error": str(exc)}, status_code=500)
+        err_str = str(exc)
+        # Detect IP whitelist errors and return a helpful message
+        if "not a registered IP" in err_str or "IP not whitelisted" in err_str or "❌ IP" in err_str:
+            import re
+            ip_match = re.search(r'\b\d{1,3}(?:\.\d{1,3}){3}\b', err_str)
+            blocked_ip = ip_match.group(0) if ip_match else "unknown"
+            return JSONResponse({
+                "error": f"❌ IP not whitelisted: {blocked_ip}",
+                "detail": (
+                    f"This server's IP ({blocked_ip}) is not registered on Angel One SmartAPI. "
+                    f"Fix options: "
+                    f"(1) Add {blocked_ip} at smartapi.angelone.in → IP Whitelist. "
+                    f"(2) Set HTTPS_PROXY env var in Vercel to route through an Indian IP proxy."
+                ),
+                "blocked_ip": blocked_ip,
+                "fix_url": "https://smartapi.angelone.in",
+            }, status_code=403)
+        return JSONResponse({"error": err_str}, status_code=500)
 
     alloc   = sig.build_allocation(ranked)
     payload = []
@@ -2267,9 +2334,21 @@ def use_config_credentials(response: Response = None):
         return response
         
     except Exception as exc:
+        err_str = str(exc)
+        import re
+        if "not a registered IP" in err_str or "IP not whitelisted" in err_str or "❌ IP" in err_str:
+            ip_match = re.search(r'\b\d{1,3}(?:\.\d{1,3}){3}\b', err_str)
+            blocked_ip = ip_match.group(0) if ip_match else "unknown"
+            return JSONResponse({
+                "status": False,
+                "message": (
+                    f"❌ IP not whitelisted: {blocked_ip} — "
+                    f"Add this IP at smartapi.angelone.in or set HTTPS_PROXY env var in Vercel."
+                ),
+            }, status_code=403)
         return JSONResponse({
             "status": False,
-            "message": f"Login failed: {str(exc)}",
+            "message": f"Login failed: {err_str}",
         }, status_code=401)
 
 
